@@ -33,3 +33,15 @@ frame별 pose의 정보를 매우 잘 표현할 수 있다고 본다. 즉 마지
 2. Res-RNN을 빨리 구현해서 성능을 빨리 볼것 
 3. 매일 매일 관련논문 한편씩 읽을것!!
 4. 생각을 잘 정리해 둘것!
+
+## 3월 5일
+### C3D - Learning Spatiotemporal Features with 3D Convolution Networks
+C3D는 일반적인 ConvNet과 다르게 input으로 여러 frame을 넣으며, kernel또한 time dimension이 존재한다. C3D는 `3 x 3 x 3` 짜리 homogenous한 convolution kernel을 사용했으며 (물론 channel depth가 따로 존재한다) 여러 벤치마크 (action recognition, sports classification 등등) 에서 state-of-art의 결과를 보여주었다. 저자들은 2D Convolution에 비해 C3D는 Spatiotemporal feature를 배우기에 더 적합하다고 주장한다. 또한 앞서 벤치마크 결과들은 별도의 fine-tuning없이 이뤄진 것으로 C3D의 feature가 매우 의미있는 feature이고 이 feature들은 video의 object, scene, action 정보를 담고 있다고 주장한다. 또한 소스코드와 100만개의 sports video를 통해  **pre-trained**된 model이 존재한다.
+
+2D ConvNet은 오직 spatially convolution함으로 temporal information을 잃어버린다. 그러나 3D ConvNet은 spatio-temoporally convolution을 하기 때문에 temporal information을 modeling할 수 있다. 16개의 frame을 input으로 넣어서 training 시켰다. 이렇게 training된 C3DNet을 feature extractor로도 사용할 수 있는데 fc6의 activation을 feature로 사용하였다.
+
+**Action Recognition**의 경우 iDT를 같이 썼을 때 성능이 5%이상 증가하였다. iDT가 low-level gradient와 optical flow를 가지고 있고, C3D는 high level abstract/semantic information을 capture하기 때문에 서로 상보적이라 이런 성능 증가가 있는 것이라고 예측하였다. 결국 C3D도 optical flow를 완벽하게 포함하고 있는것은 아니다. DeMoN에서 optical flow를 중간에 넣어논 것도 optical flow를 추가하면 대부분의 Network들이 성능 증가를 보였고, Network가 optical flow를 내재적으로 알아서 배우기 힘들기 때문일 것이다.
+
+**Scene and Object Recognition**의 경우 scene classification은 매우 잘하였지만, object recognition은 좋은 성능은 내지 못하였다. 그 이유는 sports에 대하여 pre-trained되어 있었기 때문에 object에는 좀 약하기 때문이고, C3D는 video안에서 물체가 어떻게 움직이는지 알아내도록 training되어있지, 1인칭 시점으로 camera가 직접 움직이면서 찍는 video로 training되어 있지 않아서이다. 즉, 1인칭 시점으로 camera가 움직이면서 찍는 video와 카메라가 움직이는 물체를 찍는 video는 그 motion characteristic이 매우 다르기 때문.
+
+**C3D**는 많은 벤치마크에서 state-of-art의 성능을 보였는데, 중간에 fusion을 없앴기 때문에 temporal information을 마지막 fully connected layer까지 유지하기 때문일 것이다. 또한 fc6의 activation은 매우 훌륭한 feature로 쓰였고, sports classfication이 아닌 다른 문제에도 transfer-learning을 통해 state-of-art의 성능을 보여주었으며, pre-trained되 model도 공개 되어있다 (다만 caffe model임). 그러나 pre-trained에 사용된  dataset이 화면안에서 물체가 움직이는 video들이 대부분이라, 내가 목표로하는 카메라가 움직일 때 카메라의 6-DoF를 찾는 문제에는 완벽하게 적합하다고는 할 수가 없다. 또한 input으로 16 frame정도의 연속된 사진을 원하는데, 현재 dataset의 경우 16 frame이면 마지막 frame이 첫번째 frame으로 부터 너무 멀어서  learning이 잘 안될 수도 있겠다는 생각이 들었다. Dataset이 적어서 scratch부터 training할 수는 없으므로, 최후의 방법으로나 사용하게 될것 같다. 
