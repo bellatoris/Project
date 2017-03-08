@@ -34,7 +34,7 @@ frame별 pose의 정보를 매우 잘 표현할 수 있다고 본다. 즉 마지
 3. 매일 매일 관련논문 한편씩 읽을것!!
 4. 생각을 잘 정리해 둘것!
 
-## 3월 5일
+## 3월 7일
 ### C3D - Learning Spatiotemporal Features with 3D Convolution Networks
 C3D는 일반적인 ConvNet과 다르게 input으로 여러 frame을 넣으며, kernel또한 time dimension이 존재한다. C3D는 `3 x 3 x 3` 짜리 homogenous한 convolution kernel을 사용했으며 (물론 channel depth가 따로 존재한다) 여러 벤치마크 (action recognition, sports classification 등등) 에서 state-of-art의 결과를 보여주었다. 저자들은 2D Convolution에 비해 C3D는 Spatiotemporal feature를 배우기에 더 적합하다고 주장한다. 또한 앞서 벤치마크 결과들은 별도의 fine-tuning없이 이뤄진 것으로 C3D의 feature가 매우 의미있는 feature이고 이 feature들은 video의 object, scene, action 정보를 담고 있다고 주장한다. 또한 소스코드와 100만개의 sports video를 통해  **pre-trained**된 model이 존재한다.
 
@@ -45,3 +45,11 @@ C3D는 일반적인 ConvNet과 다르게 input으로 여러 frame을 넣으며, 
 **Scene and Object Recognition**의 경우 scene classification은 매우 잘하였지만, object recognition은 좋은 성능은 내지 못하였다. 그 이유는 sports에 대하여 pre-trained되어 있었기 때문에 object에는 좀 약하기 때문이고, C3D는 video안에서 물체가 어떻게 움직이는지 알아내도록 training되어있지, 1인칭 시점으로 camera가 직접 움직이면서 찍는 video로 training되어 있지 않아서이다. 즉, 1인칭 시점으로 camera가 움직이면서 찍는 video와 카메라가 움직이는 물체를 찍는 video는 그 motion characteristic이 매우 다르기 때문.
 
 **C3D**는 많은 벤치마크에서 state-of-art의 성능을 보였는데, 중간에 fusion을 없앴기 때문에 temporal information을 마지막 fully connected layer까지 유지하기 때문일 것이다. 또한 fc6의 activation은 매우 훌륭한 feature로 쓰였고, sports classfication이 아닌 다른 문제에도 transfer-learning을 통해 state-of-art의 성능을 보여주었으며, pre-trained되 model도 공개 되어있다 (다만 caffe model임). 그러나 pre-trained에 사용된  dataset이 화면안에서 물체가 움직이는 video들이 대부분이라, 내가 목표로하는 카메라가 움직일 때 카메라의 6-DoF를 찾는 문제에는 완벽하게 적합하다고는 할 수가 없다. 또한 input으로 16 frame정도의 연속된 사진을 원하는데, 현재 dataset의 경우 16 frame이면 마지막 frame이 첫번째 frame으로 부터 너무 멀어서  learning이 잘 안될 수도 있겠다는 생각이 들었다. Dataset이 적어서 scratch부터 training할 수는 없으므로, 최후의 방법으로나 사용하게 될것 같다. 
+
+## 3월 8일
+### Bayesian PoseNet - Modelling Uncertainty in Deep Learning for Camera Relocalization
+PoseNet 저자가 쓴 논문으로 GoogleNet 중간에 Dropout layer를 넣어 Bayesian convolutional layer로 만들고 input image를 crop하여 여러개 집어넣은 후에 결과들을 averaging하면 기존 PoseNet보다 더 좋은 결과가 나온다고 한다. Bayesian이나 Bernoulli distribution 같은 모르는 내용이 많아 논문을 정확하게 이해하지는 못하였다. 그러나 결국 그들의 주장은 Dropout을 추가함으로써 Bayesian ConvNet을 만들 수 있고, Dropout을 통해 sampling 하는것은 model의 posterior distribution으로 부터 sampling하는 것이라고 볼 수 있다는 것이다. Test time에 Dropout Network로 부터 얻은 sample들을 averaging 함으로써 inference를 수행할 수 있고, 더 좋은 결과를 얻을 수 있다. sample들의 variance를 uncertainty로 추정하였다 (정확히는 trace of the unimodal Gaussian's covariance matrix). 실제로 uncertainty와 relocalization error는 비례관계 있었다.
+
+그러나 이 논문으로 부터는 큰 intuition을 얻지 못하였다. 성능도 마지막에 LSTM을 붙인 논문이 더 좋았으며, 모든 Convolution layer이후마다 Dropout을 붙인 Network는 기존 PoseNet보다도 성능이 떨어졌기 때문이다 (그래서 저자는 하나의 convolution layer뒤에다 Dropout layer를 붙였고, regressor부분에 붙였다). 그 이유는 pre-trained된 Network의 feature들이 연약하게 (co-adapt) 융합 되어 있을수 있으며, 이들을 transferring하는 것은 이러한 상호 적응을 깨뜨릴 수 있기 때문에, 모든 layer뒤에 Dropout을 추가시키는 것은 Dropout없이 learning된 Network를 망가뜨릴 수 있다는 것이다.
+
+그러나 내가 추가할 부분 (마지막 regressor 부분)에 Dropout을 추가하는 것은 적은 training set을 가졌을 때 매우 좋은 regularization 테크닉인건 분명 하므로, 나도 사용하는게 좋을 것이다.
