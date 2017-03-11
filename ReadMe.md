@@ -53,3 +53,15 @@ PoseNet 저자가 쓴 논문으로 GoogleNet 중간에 Dropout layer를 넣어 B
 그러나 이 논문으로 부터는 큰 intuition을 얻지 못하였다. 성능도 마지막에 LSTM을 붙인 논문이 더 좋았으며, 모든 Convolution layer이후마다 Dropout을 붙인 Network는 기존 PoseNet보다도 성능이 떨어졌기 때문이다 (그래서 저자는 하나의 convolution layer뒤에다 Dropout layer를 붙였고, regressor부분에 붙였다). 그 이유는 pre-trained된 Network의 feature들이 연약하게 (co-adapt) 융합 되어 있을수 있으며, 이들을 transferring하는 것은 이러한 상호 적응을 깨뜨릴 수 있기 때문에, 모든 layer뒤에 Dropout을 추가시키는 것은 Dropout없이 learning된 Network를 망가뜨릴 수 있다는 것이다.
 
 그러나 내가 추가할 부분 (마지막 regressor 부분)에 Dropout을 추가하는 것은 적은 training set을 가졌을 때 매우 좋은 regularization 테크닉인건 분명 하므로, 나도 사용하는게 좋을 것이다.
+
+## 3월 11일
+### Implement PoseNet 
+PoseNet을 구현하였다. 처음에는 뒤의 fully connect만 learning 하는 줄 알았다. Fully connect만 learning한 경우 Translation error: 9.60 (m), Rotation error: 9.31 (degree)가 나와 논문 보다 훨씬 안좋은 결과를 얻었다. 또한 fully connect layer의 weight initialization이 매우 중요했다. He initialization은 std가 너무 커서 loss가 divergence해버렸고, 논문의 구현을 따를 경우 loss를 convergence 시킬 수 있었다. regression의 경우 initialization을 어떻게 해야할지 좀더 고려해봐야 할 듯 하다.
+
+Pre-trained된 ResNet까지 training 시켰을 때 152 layer ResNet은 parameter가 너무 많아서 batch size를 32정도 까지 줄여야만 했었다. 신기한건 training 때보다, validate일때 batch size를 더 줄여야 한다는 점이었다. 이해가 안간다. 152 layer를 사용해서 training한 경우 Translation error: 1.6 (m), Rotation error: 2.4 (degree) 정도를 얻을 수 있었다. 34 layer - 72 batch size를 사용한 경우 Translation error: 1.9 (m), Rotation error: 2.6 (degree) 를 얻을 수 있었다. 논문 (GooLeNet) 을 TensorFlow로 구현한 결과는 Translation error: 2.0 (m), Rotation error: 2.3 (degree) 이었다. 
+
+논문에서는 median결과를 결과 Table에 올렸는데 나의 경우는 모두 mean값을 적은 것이다. 깊은 layer나 적은 layer나 결과가 비슷한 것으로 보이므로 그냥 적은 layer를 쓰는게 나아 보인다. RNN까지 적용하려면 훨씬 많은 memory가 필요할 것이니 말이다. 
+
+한가지 공부해야 할 점은 quaternion oritentation이다. 이 orientation은 4-D로 orientation을 쉽게 표현 할 수 있도록 도와준다고 한다. 5장을 넣어 첫번째 사진에 대한 5번째 사진의 orientation을 구하는 것이 목표 이므로 상대 orientation을 구하는 법을 공부해놓아야 한다.
+
+PoseNet이 잘 동작한다는 것을 알 수 있었고 ResNet으로도 충분히 좋은 결과를 얻을 수 있었다. 다음주에는 RNN을 올려보도록 하자.
