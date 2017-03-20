@@ -98,5 +98,32 @@ Quaternion rotation vector를 SO(3) rotation vector로 바꿔주는 공식을 �
 
 그러나 dataset에서 주어진 Quaternion 들이 `q_oa`인지 `q_ao`인지 확실하지 않았고, rotation vector로 변경하는 공식도 wikipedia와 용석이형이 준 pdf와 달랐기 때문에 정확한 matrix들을 얻는데 어려움을 겪었다. 그래서 다음과 같은 방식으로 검증 하였다. 우선 dataset이 `q_oa`로 주어졌다고 가정하였다. 그리고 Quaternion matrix multiplication 공식을 이용해 `q_ab`를 구한후 이 Quaternion vector를 SO(3) rotation matrix `r_ab`로 변경하였다. 또한 `q_oa`와 `q_ob` 각각을 `r_oa`와 `r_ob`로 변경하였고 `r_ab = r_oa.transpose * r_ob`를 통해 구하여 앞서 구한 `r_ab`와 일치하는지 확인 하였다.
 
+또한 dataset이 한쪽 방향으로만 learning되는 것을 막기 위해 (translation이나, rotation이 증가만 하는 경우) 시간 순서를 역순으로 하여 dataset 크기를 2배로 증가 시켰다. 또한 한번에 5장씩 frame을 가져오므로, 다른 sequence의 frame을 가져오거나, index가 dataset을 벗어나지 않도록 신경써주어야 했다.
+
 ### Training
-위에서 얻어진 relative pose dataset을 이용해 training을 하였고, batch size는 32로 하였다. GRU의 init hidden layer는 512-size로 random initialization하였다.
+Framework는 Pytorch를 사용하였다. 위에서 얻어진 relative pose dataset을 이용해 training을 하였고, size를 작은쪽을 256으로 scailing한 후 224x224로 random cropping하였다. Imagenet data의 mean과 std를 사용하여 normalization하였고, batch는 randomly shuffle해서 선택하였다. batch size는 32로 하였다 GRU의 init hidden layer는 512-size로 randomly initialization하였다. 5번째 frame에 대한 값만 loss를 구하는데 사용하였고, l2 loss를 사용하였다. 
+
+`loss = translation loss + beta * rotation loss` 
+
+beta는 50으로 설정하였다. Optimization은 ADAM으로 진행하였고 learning rate = 1e-4, weight decay = 2e-4로 설정하였다. 
+
+### Result
+3000장 정도의 dataset을 40번 정도 iteration 하였다. translation을 못 배우는 것처럼 보였으며, training의 경우 error가 그래도 1m ~ 0.5m 까지 떨어 졌지만, test의 경우 2m 이하로는 떨어지지 않았다, 물론 충분히 iteration을 돈게 아니지만, loss가 거의 떨어지지 않은 것을 보아 learning이 잘 안되고 있다는 것을 확인 할 수 있었다. 반면 rotation의 경우 초기 loss 50에서 3~4 까지 쉽게 떨어졌으며, test의 경우에도 동일한 경향성을 보였다. 이는 cosine distance로 표현했을 때 3~4 (degree)정도 차이나는 것이다. 
+
+### Discussion
+rotation은 배울 수 있는데 translation은 못배우는 이유가 무엇일까? **translation은 심지어 learning을 안한 상태에서 test를 해도 error가 평균적으로 3m가 나온다.** 즉 거의 learning을 못하고 있다고 보여진다. 그 이유로는 아마도
+
+* 위에서 구한 rotation matrix가 잘못됐을 수도 있다. 예를 들어 `r_oa`가 구해진 것이 아니라, `r_ao`가 구해진 것이어서 의미없는 translation vector를 regression하도록 learning했기 때문일 수 있다. 이 이유로는 rotation matrix을 얻는 공식이 틀렸거나, 애초에 주어진 Quaternion이 `q_oa`가 아니라 `q_ao` 이었을 수도 있다. 
+* 애초에 tranlation을 구하는 것이 어려운 것일 수도 있다. PoseNet의 경우 relocalization이기 때문에 그 scene의 대한 distance 정보가 network안에 존재해서 알맞게 regression 하는 것일 수 있다. 그러나 scene의 대한 정보가 없다면, 물체의 크기를 가늠할 수 없기 때문에 translation에 ambiguity가 존재해 제대로 regression 할 수 없을 것이다. (실제로 고전적인 SLAM의 경우 depth map을 구해 pose를 구한다.)
+
+그렇다면 rotation이 잘 구해지는 이유는 무엇일까?
+
+* 5 frame간 rotation의 차이는 그리 크지 않아서 애초에 variance가 적은 것이어서 잘 구해지는 것일 수 있다. 실제로 PoseNet의 dataset은 카메라를 들고 이동하면서 찍은 것이서 주 변화는 translation에서 나타나지 rotation에서 나타나지 않는다.
+* rotation에는 ambiguity가 없기 때문일 수도 있다. 
+
+### ToDo
+* 우선 rotation matrix와 `q_oa`인지 `q_ao`인지 확실히 알아내야 한다. 
+* GRU의 initial hidden state를 learnable하게 만드는 것도 중요하다. 혹은 이 initial state에 ResPoseNet의 representation을 넣는 것도 생각 해 볼만하다. 
+* Pre-trained 된 network로 ResNet이 아닌 ResPoseNet을 쓰는 것도 생각해 볼만하다. 즉 pre-trained된 ResPoseNet의 fc-layer의 output을 GRU의 input으로 집어넣는 것이다. 이 경우 이미 network가 pose를 regression하는 것으로 fine-tuning 되어 있으므로 더 좋은 결과를 낼지도 모른다. 
+* 우선 KingsCollege dataset 하나에만 해서 learning이 되는지 빠르게 판단해보자. Network가 KingsCollege scene에만 overfitting 될 수도 있지만, 우선 relative translation이 learning이 되는지 확인 하는게 더 중요하다. 
+* Depth와 pose를 iterative하게 refine하는 방법도 고려해 볼만 하다. 둘다 서로 상관관계가 있기 때문이다. 물론 depth map의 경우 point wise regression이라 learning이 어렵긴 하지만...
