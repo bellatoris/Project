@@ -73,3 +73,30 @@ PoseNet이 잘 동작한다는 것을 알 수 있었고 ResNet으로도 충분�
 * 152-median =  1.31433 m  and  1.7091 degrees.
 * 34-median = 1.48544 m  and  2.00498 degrees.
 * GoogLeNet =  1.45684 m  and  1.89369 degrees.
+
+## 3월 18일
+### Implement RegNet
+
+RegNet은 내가 붙인 이름으로 Pose를 Regression하는 network이기에 RegNet이라 명명 하였다. 우선 ResNet34 에서 Average pooling layer의 output을 fully connected GRU에 input으로 집어넣었다. GRU의 경우 hidden layer의 size는 512로 하였고, sequence length는 5로 설정하였고, Dropout 확률은 0.5로 설정하였다. 마지막 hidden layer의 output을 pose를 regression하는 fc-layer의 input으로 집어넣었다. 5장의 사진을 넣었을 때 첫번째 사진을 기준으로 맨 마지막 사진의 pose를 target으로 하였다. 
+
+### Make Dataset
+PoseNet의 전체 Dataset을 다 사용하려고 했지만, Street과 Great Court는 논문에서 안 쓰는 경우가 많았고, 나의 경우도 loss graph를 이상하게 만드는 경향이 있어서 training에서 제외하였다. training 때 5장의 연속된 사진을 input으로 넣었으며, regularization 및 generalization을 위해 frame 간격은 1~4 중에서 random하게 골랐다. validation 때는 frame 간격을 1로 하였다. 첫번 째 frame에 대한 상대적인 pose를 target으로 줘야 했기에 Quaternion Algebra를 공부 했어야만 했다.
+
+Quaternion rotation vector `q_oa`, `q_ob` (`o`는 global coordinate를 의미 한다) 가 있을 때 나는 `q_ab`를 알아야 한다. `q_ab = q_oa.inverse * q_ob`로 표현이 가능하다. `q_oa.inverse`는 각도를 제외한 나머지 vector들의 부호를 바꿔 주면 된다.
+
+![qmul](./Picture/qmul.png)
+
+![qmat](./Picture/qmat.png)
+
+Quaternion multiplication 공식을 이용해서 `q_oa.inverse`의 matrix를 만들어서 `q_ob`에 곱하면 `q_ab`를 얻을 수 있었다. 주의할 점은 위 공식의 경우 `q4` 와 `p4`가 각도 이고, 주어진 data는 `q0`가 각도 이기 때문에 matrix의 순서를 조정해야만 한다.
+
+또한 translation또한 주어진 data는 global coordinate에 정의 되어 있기 때문에, 첫번째 frame에 대해서 좌표축을 바꿔주어야만 했다.
+
+![qrot](./Picture/qrot.png)
+
+Quaternion rotation vector를 SO(3) rotation vector로 바꿔주는 공식을 이용해 `q_oa`를 `r_oa`로 변경 하였다. `t_a = r_oa.transpose * t_o`를 이용해 translation의 좌표계를 변경해 주었다.
+
+그러나 dataset에서 주어진 Quaternion 들이 `q_oa`인지 `q_ao`인지 확실하지 않았고, rotation vector로 변경하는 공식도 wikipedia와 용석이형이 준 pdf와 달랐기 때문에 정확한 matrix들을 얻는데 어려움을 겪었다. 그래서 다음과 같은 방식으로 검증 하였다. 우선 dataset이 `q_oa`로 주어졌다고 가정하였다. 그리고 Quaternion matrix multiplication 공식을 이용해 `q_ab`를 구한후 이 Quaternion vector를 SO(3) rotation matrix `r_ab`로 변경하였다. 또한 `q_oa`와 `q_ob` 각각을 `r_oa`와 `r_ob`로 변경하였고 `r_ab = r_oa.transpose * r_ob`를 통해 구하여 앞서 구한 `r_ab`와 일치하는지 확인 하였다.
+
+### Training
+위에서 얻어진 relative pose dataset을 이용해 training을 하였고, batch size는 32로 하였다. GRU의 init hidden layer는 512-size로 random initialization하였다.
