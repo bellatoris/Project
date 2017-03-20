@@ -127,3 +127,11 @@ rotation은 배울 수 있는데 translation은 못배우는 이유가 무엇일
 * Pre-trained 된 network로 ResNet이 아닌 ResPoseNet을 쓰는 것도 생각해 볼만하다. 즉 pre-trained된 ResPoseNet의 fc-layer의 output을 GRU의 input으로 집어넣는 것이다. 이 경우 이미 network가 pose를 regression하는 것으로 fine-tuning 되어 있으므로 더 좋은 결과를 낼지도 모른다. 
 * 우선 KingsCollege dataset 하나에만 해서 learning이 되는지 빠르게 판단해보자. Network가 KingsCollege scene에만 overfitting 될 수도 있지만, 우선 relative translation이 learning이 되는지 확인 하는게 더 중요하다. 
 * Depth와 pose를 iterative하게 refine하는 방법도 고려해 볼만 하다. 둘다 서로 상관관계가 있기 때문이다. 물론 depth map의 경우 point wise regression이라 learning이 어렵긴 하지만...
+
+용석이형의 말말말
+
+* 아니 카메라 하나로 translation을 구하는게 말이 되느냐, scale을 모를텐데 meter단위로 알아낸다는 것 자체가 애초에 물리적으로 불가능한 문제다. SLAM에서도 우선 단위 없이 구한다음에 scale을 곱해서 정확한 meter단위로 알아낸다. 
+* 또한 봤던 scene이 아니라 아예 안봤던 scene에 대해서 test를 해야하지 않겠느냐.
+* 또한 일반적인 SLAM dataset의 경우 `q_oa`가 아닌 `q_ao`로 주어진다. translation도 마찬가지도 `t_ao`로 주어진다. 
+
+논문을 다시 읽어본 결과 **Pose p is defined relative to an arbitrary global reference frame** 라 적혀있는 것을 발견 하였고, `q_oa`로 주어진 것으로 보인다! 용석이형이 준 교재는 left-hand rule quaternion이었다. 일반적으로 right-hand rule을 사용할 것이니 right-hand rule로 변경하였다.
