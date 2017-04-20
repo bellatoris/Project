@@ -108,7 +108,7 @@ Framework는 Pytorch를 사용하였다. 위에서 얻어진 relative pose datas
 beta는 50으로 설정하였다. Optimization은 ADAM으로 진행하였고 learning rate = 1e-4, weight decay = 2e-4로 설정하였다. 
 
 ### Result
-3000장 정도의 dataset을 40번 정도 iteration 하였다. translation을 못 배우는 것처럼 보였으며, training의 경우 error가 그래도 1m ~ 0.5m 까지 떨어 졌지만, test의 경우 2m 이하로는 떨어지지 않았다, 물론 충분히 iteration을 돈게 아니지만, loss가 거의 떨어지지 않은 것을 보아 learning이 잘 안되고 있다는 것을 확인 할 수 있었다. 반면 rotation의 경우 초기 loss 50에서 3~4 까지 쉽게 떨어졌으며, test의 경우에도 동일한 경향성을 보였다. 이는 cosine distance로 표현했을 때 3~4 (degree)정도 차이나는 것이다. 
+3000장 정도의 dataset을 40번 정도 iteration 하였다. translation을 못 배우는 것처럼 보였으며, training의 경우 error가 그래도 1m ~ 0.5m 까지 떨어 졌지만, test의 경우 2m 이하로는 떨어지지 않았다, 물론 충분히 iteration을 돈게 아니지만, loss가 거의 떨어지지 않은 것을 보아 learning이 잘 안되고 있다는 것을 확인 할 수 있었다. 반면 rotation의 경우 초기 loss 50에서 3\~4 까지 쉽게 떨어졌으며, test의 경우에도 동일한 경향성을 보였다. 이는 cosine distance로 표현했을 때 3\~4 (degree)정도 차이나는 것이다. 
 
 ### Discussion
 rotation은 배울 수 있는데 translation은 못배우는 이유가 무엇일까? **translation은 심지어 learning을 안한 상태에서 test를 해도 error가 평균적으로 3m가 나온다.** 즉 거의 learning을 못하고 있다고 보여진다. 그 이유로는 아마도
