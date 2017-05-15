@@ -105,3 +105,5 @@ class PoseReg(nn.Module):
 
         return x
 
+# a = PoseReg()
+# a(torch.autograd.Variable(torch.rand(1, 7, 256, 192)))
