@@ -24,6 +24,7 @@ class EncDec(nn.Module):
         # conv1's output size = 32 x 128 x 96
         self.conv1 = nn.Conv2d(6, 32, kernel_size=9, stride=2, padding=4,
                                bias=False)
+        self.shortcut_conv1 = conv3x3(32, 32)
 
         # conv2's output size = 64 x 64 x 48
         self.conv2 = nn.Conv2d(32, 64, kernel_size=7, stride=2, padding=3,
@@ -31,18 +32,27 @@ class EncDec(nn.Module):
 
         # conv3's output size = 64 x 64 x 48
         self.conv3 = conv3x3(64, 64, stride=1)
+        self.shortcut_conv2 = conv3x3(64, 64)
 
         # conv4 and conv5's output size = 128 x 32 x 24
         self.conv4 = conv3x3(64, 128, stride=2)
         self.conv5 = conv3x3(128, 128, stride=1)
+        self.shortcut_conv3 = conv3x3(128, 128)
 
         # conv6's and conv7's output size = 256 x 16 x 12
         self.conv6 = conv3x3(128, 256, stride=2)
         self.conv7 = conv3x3(256, 256, stride=1)
+        self.shortcut_conv4 = conv3x3(256, 256)
 
         # conv8's and conv 9's output size = 512 x 8 x 6
         self.conv8 = conv3x3(256, 512, stride=2)
         self.conv9 = conv3x3(512, 512, stride=1)
+
+        # convolution and fully connected layer for pose
+        self.pose_conv = conv3x3(512, 128)
+        self.fc1 = nn.Linear(128 * 8 * 6, 1024)
+        self.fc2 = nn.Linear(1024, 128)
+        self.fc3 = nn.Linear(128, 7)
 
         # up_conv1's output size = 256 x 16 x 12
         self.up_conv1 = up_conv4x4(512, 256, stride=2)
@@ -96,22 +106,37 @@ class EncDec(nn.Module):
 
         out = self.conv8(out)
         out = self.relu(out)
+
+        shortcut5 = out    # shortcut5's size = 512 x 8 x 6
+
         out = self.conv9(out)       # out's size = 512 x 8 x 6
+        out += shortcut5
         out = self.relu(out)
+
+        pose = self.pose_conv(out)
+        pose = pose.view(pose.size(0), -1)
+        pose = self.fc1(pose)
+        pose = self.fc2(pose)
+        pose = self.fc3(pose)
+
         out = self.up_conv1(out)    # out's size = 256 x 16 x 12
         out += shortcut4
+        out += self.shortcut_conv4(shortcut4)
         out = self.relu(out)
 
         out = self.up_conv2(out)    # out's size = 128 x 32 x 24
         out += shortcut3
+        out += self.shortcut_conv3(shortcut3)
         out = self.relu(out)
 
         out = self.up_conv3(out)    # out's size = 64 x 64 x 48
         out += shortcut2
+        out += self.shortcut_conv2(shortcut2)
         out = self.relu(out)
 
         out = self.up_conv4(out)    # out's size = 32 x 128 x 96
         out += shortcut1
+        out += self.shortcut_conv1(shortcut1)
         out = self.relu(out)
 
         out = self.up_conv5(out)    # out's size = 16 x 256 x 192
@@ -119,5 +144,5 @@ class EncDec(nn.Module):
 
         out = self.conv10(out)      # out's size = 1 x 256 x 192
 
-        return out
+        return out, pose
 
