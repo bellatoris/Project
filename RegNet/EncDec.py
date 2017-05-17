@@ -70,7 +70,8 @@ class EncDec(nn.Module):
         self.up_conv5 = up_conv4x4(32, 16, stride=2)
 
         # conv10's output size = 1 x 256 x 192
-        self.conv10 = conv3x3(16, 1, stride=1)
+        self.conv10 = nn.Conv2d(16, 1, kernel_size=9, stride=1, padding=4,
+                               bias=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):

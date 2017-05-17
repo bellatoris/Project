@@ -98,3 +98,5 @@ fabric.properties
 *.m
 tmp_images
 __pycache__
+*.tar
+*.gz

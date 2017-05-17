@@ -15,6 +15,20 @@ import time
  Outputs : Image of the first/second frame(H x W x 3), Optical Flow(H x W x 2), Egomotion(6-dim vector, se(3)), Inverse depth map of the first/second frame
            Camera Distance(in meter), Overlap ratio([0, 1)), Photo-cosistency Error (in RMS)
 """
+def ypr2quat(ypr):
+    print(ypr)
+    quat = np.zeros(4)
+    ypr_half_cos = np.cos(ypr/2)
+    ypr_half_sin = np.sin(ypr/2)
+
+    print(ypr_half_cos)
+    quat[0] = ypr_half_cos[2]*ypr_half_cos[1]*ypr_half_cos[0] + ypr_half_sin[2]*ypr_half_sin[1]*ypr_half_sin[0]
+    quat[1] = ypr_half_sin[2]*ypr_half_cos[1]*ypr_half_cos[0] + ypr_half_cos[2]*ypr_half_sin[1]*ypr_half_sin[0]
+    quat[2] = ypr_half_cos[2]*ypr_half_sin[1]*ypr_half_cos[0] + ypr_half_sin[2]*ypr_half_cos[1]*ypr_half_sin[0]
+    quat[3] = ypr_half_cos[2]*ypr_half_cos[1]*ypr_half_sin[0] + ypr_half_sin[2]*ypr_half_sin[1]*ypr_half_cos[0]
+
+    return quat
+
 def dataLoad_SUN3D(sequenceName, nFrame1, nFrame2,dataTopPath,verbose=False):
     
    # print(sequenceName, nFrame1, nFrame2,dataTopPath, matlabCodePath,verbose)
@@ -98,22 +112,29 @@ def readSUN3D_singleData(list_dir,threshold_PCE,threshold_camDist,threshold_over
             #frameID = 10
             #frameIDAnother = 20
             output_tmp = dataLoad_SUN3D(dataDir,frameID,frameIDAnother,'',False)
-
-            #print(output_tmp['camDist'], output_tmp['pce'] ,output_tmp['overlapRatio'])
+            #output_tmp = dataLoad_SUN3D(dataDir,642,646,'',False)
+           # print(output_tmp['camDist'], output_tmp['pce'] ,output_tmp['overlapRatio'])
             if (output_tmp['camDist'] > threshold_camDist and output_tmp['pce'] < threshold_PCE and output_tmp['overlapRatio']> threshold_overlap and output_tmp['overlapRatio']<1):
-                """
+                
                 egomotion_extended = np.zeros(7)
 
-                egomotion_tmp = output_tmp['egomotion']
+                egomotion_tmp = output_tmp['egomotion']        
                 
-                scale_tmp = np.linalg.norm(egomotion_tmp[0:3])
+                scale_tmp = np.linalg.norm(egomotion_tmp[0:3])   
+                
+                """
+                quat_tmp = ypr2quat(egomotion_tmp[3:6])
+                egomotion_extended[0:3] = egomotion_tmp[0:3]/scale_tmp
+                
+                egomotion_extended[3:7] = quat_tmp
+                egomotion_extended[7] = scale_tmp
+                """
+                
                 egomotion_tmp[0:3] = egomotion_tmp[0:3]/scale_tmp
-                
                 egomotion_extended[0:6] = egomotion_tmp
                 egomotion_extended[6] = scale_tmp
-
                 output_tmp['egomotion'] = egomotion_extended
-                """
+                
                 #print('finished')
                 
                 output.put(output_tmp)
@@ -165,7 +186,7 @@ def miniBatch_generate(list_dir, miniBatch_size=8):
     target_depth_first = torch.Tensor(miniBatch_size,height_resized,width_resized,1 ).numpy()
     #target_depth_second = torch.Tensor(miniBatch_size,height_resized,width_resized,1 ).numpy()
     target_opticalFlow = torch.Tensor(miniBatch_size,height_resized,width_resized,2 ).numpy()
-    target_egomotion = torch.Tensor(miniBatch_size,6).numpy()
+    target_egomotion = torch.Tensor(miniBatch_size,7).numpy()
 
     
 
@@ -208,13 +229,14 @@ def miniBatch_generate(list_dir, miniBatch_size=8):
     return {'input_image_first':input_image_first,'input_image_second': input_image_second,'target_depth_first': target_depth_first,'target_opticalFlow': target_opticalFlow,'target_egomotion':target_egomotion}
 
 """
-
 outDir = listOfDir_generate('/home/dongwoo/Project/dataset/SUN3D')
 #print(outDir)
 #a = mlab.run_func('./SUN3Dflow_py.m',{'sequenceDir':'','sequenceName':'/home/dongwoo/Project/dataset/SUN3D/hotel_sf/scan2/','frameID':str(30),'frameIDAnother':str(50)})
 t = time.time()
 output = miniBatch_generate(outDir,1)
 elapsed = time.time() - t
+print(output['target_egomotion'])
 print('Success, time :',elapsed)
+
 print('good')
 """
