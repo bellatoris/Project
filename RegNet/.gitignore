@@ -91,3 +91,10 @@ fabric.properties
 .idea/sonarlint
 
 # End of https://www.gitignore.io/api/macos,pycharm
+
+
+*.png
+*.pth
+*.m
+tmp_images
+__pycache__

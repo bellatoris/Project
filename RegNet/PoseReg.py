@@ -59,8 +59,8 @@ class PoseReg(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)    # 32 x 24
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)    # 16 x 12
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)    # 8 x 6
-        self.conv2 = nn.Conv2d(512, 512, kernel_size=(8, 6), bias=False)   # 1
-        self.fc = nn.Linear(512, 7)
+        self.conv2 = nn.Conv2d(512, 512, kernel_size=(6, 8), bias=False)   # 1
+        self.fc = nn.Linear(512, 6)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

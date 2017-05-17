@@ -83,29 +83,40 @@ class EncDec(nn.Module):
         out = self.conv4(out)
         out = self.relu(out)
         out = self.conv5(out)
+        out = self.relu(out)
 
         shortcut3 = out    # shortcut3's size = 128 x 32 x 24
 
         out = self.conv6(out)
+        out = self.relu(out)
         out = self.conv7(out)
+        out = self.relu(out)
 
         shortcut4 = out    # shortcut4's size = 256 x 16 x 12
 
         out = self.conv8(out)
+        out = self.relu(out)
         out = self.conv9(out)       # out's size = 512 x 8 x 6
+        out = self.relu(out)
         out = self.up_conv1(out)    # out's size = 256 x 16 x 12
         out += shortcut4
+        out = self.relu(out)
 
         out = self.up_conv2(out)    # out's size = 128 x 32 x 24
         out += shortcut3
+        out = self.relu(out)
 
         out = self.up_conv3(out)    # out's size = 64 x 64 x 48
         out += shortcut2
+        out = self.relu(out)
 
         out = self.up_conv4(out)    # out's size = 32 x 128 x 96
         out += shortcut1
+        out = self.relu(out)
 
         out = self.up_conv5(out)    # out's size = 16 x 256 x 192
+        out = self.relu(out)
+
         out = self.conv10(out)      # out's size = 1 x 256 x 192
 
         return out
