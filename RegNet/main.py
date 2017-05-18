@@ -1,6 +1,7 @@
 from EncDec import EncDec
 from OpticalFlow import OpticalFlow
 from PoseReg import PoseReg
+from Iter import Iter
 from dataLoad_multiprocess import *
 import torch.backends.cudnn as cudnn
 import torch
@@ -21,7 +22,7 @@ def parsing_minibatch(input1, batch_size):
 
     return input1
 
-def validateModel_simple(encoder_decoder, iteration):
+def validateModel_simple(encoder_decoder, iter, iteration):
     #dataDir = '/home/dongwoo/Project/dataset/SUN3D_validate/harvard_c11/hv_c11_2/'
     dataDir = '/home/dongwoo/Project/dataset/SUN3D_validate/harvard_c11/hv_c11_2/'
     outDir = './validation/'
@@ -40,9 +41,16 @@ def validateModel_simple(encoder_decoder, iteration):
         input_val = np.zeros([1,6,192,256])
         input_val[:,0:3,:,:] = output_tmp['image_first'].transpose(2,0,1); input_val[:,3:6,:,:] = output_tmp['image_second'].transpose(2,0,1)
         input_val = torch.from_numpy(input_val).float().cuda()
+        input_val = torch.autograd.Variable(input_val)
         
         # help doogie
-        output_val, _ = encoder_decoder(torch.autograd.Variable(input_val))
+        output_val, _ = encoder_decoder(input_val)
+        output_val = torch.cat((input_val, output_val), dim=1)
+        output_val, _ = iter(output_val)
+        # output_val = torch.cat((input_val, output_val), dim=1)
+        # output_val, _ = iter(output_val)
+        # output_val = torch.cat((input_val, output_val), dim=1)
+        # output_val, _ = iter(output_val)
 
         outPath = outDir + 'depth_out_' + str(iterVal) + '_' + str(iteration) + '.png'
         img = output_val.data.cpu().numpy().reshape(192,256)
@@ -55,21 +63,26 @@ def main():
     encoder_decoder = EncDec().cuda()
     pose_regressor = PoseReg().cuda()
     optical_flow = OpticalFlow().cuda()
+    iter = Iter().cuda()
 
     # load parameter
-    #enc_checkpoint = torch.load('encdec.pth')
+    enc_checkpoint = torch.load('encdec.pth')
     # pose_checkpoint = torch.load('pose.pth')
     # opt_checkpoint = torch.load('optical.pth')
+    # iter_checkpoint = torch.lead('iter.pth')
 
-    #encoder_decoder.load_state_dict(enc_checkpoint['state_dict'])
+    encoder_decoder.load_state_dict(enc_checkpoint['state_dict'])
     # pose_regressor.load_state_dict(pose_checkpoint['state_dict'])
     # optical_flow.load_state_dict(opt_checkpoint['state_dict'])
+    # iter.load_state_dict(iter_checkpoint['state_dict'])
 
     cudnn.benchmark = True
 
     lr = 1e-3
 
-    optimizer = torch.optim.Adam(encoder_decoder.parameters(), lr=lr, weight_decay=2e-4)
+    # optimizer = torch.optim.Adam(encoder_decoder.parameters(), lr=lr, weight_decay=2e-4)
+    optimizer = torch.optim.Adam(iter.parameters(), lr=lr, weight_decay=2e-4)
+
 
     i = 1
 
@@ -88,7 +101,7 @@ def main():
             optimizer.lr = 1e-4
 
         (loss, depth_loss, pose_loss) = \
-            train(input, encoder_decoder, pose_regressor, optical_flow, optimizer)
+            train(input, encoder_decoder, pose_regressor, optical_flow, iter, optimizer)
         
         if i % 10 == 0:
             elapse_t = time.time() - t
@@ -103,24 +116,47 @@ def main():
                   ))
         i += 1
         if i % 100 == 0:
-            torch.save({'state_dict': encoder_decoder.state_dict()}, 'encdec.pth') 
+            # torch.save({'state_dict': encoder_decoder.state_dict()}, 'encdec.pth') 
             # torch.save({'state_dict': pose_regressor.state_dict()}, 'pose.pth') 
             # torch.save({'state_dict': optical_flow.state_dict()}, 'optical.pth') 
-            validateModel_simple(encoder_decoder,i)
+            torch.save({'state_ditct': iter.state_dict()}, 'iter.pth')
+            validateModel_simple(encoder_decoder, iter,i)
 
-def train(input, encoder_decoder, pose_regressor, optical_flow, optimizer):
+def train(input, encoder_decoder, pose_regressor, optical_flow, iter, optimizer):
     image1 = torch.autograd.Variable(input['input_image_first'].cuda())
     image2 = torch.autograd.Variable(input['input_image_second'].cuda())
     egomotion = torch.autograd.Variable(input['target_egomotion'].cuda())
-    opticalflow = torch.autograd.Variable(input['target_opticalFlow'].cuda())
+    # opticalflow = torch.autograd.Variable(input['target_opticalFlow'].cuda())
     depth = torch.autograd.Variable(input['target_depth_first'].cuda())
 
     image_pair = torch.cat((image1, image2), dim=1)
 
+    mse_loss = torch.nn.MSELoss()
+
+
     # get depth
     depth_output, pose_output = encoder_decoder(image_pair)
     
+    # first_iter
+    image_with_depth = torch.cat((image1, image2, depth_output), dim=1)
+    depth_output, pose_output = iter(image_with_depth)
+
+    depth_loss = mse_loss(depth_output, depth) * 100
+    pose_loss = mse_loss(pose_output, egomotion) * 100
+
+    # # second_iter
     # image_with_depth = torch.cat((image1, image2, depth_output), dim=1)
+    # depth_output, pose_output = iter(image_with_depth)
+
+    # depth_loss += mse_loss(depth_output, depth) * 100
+    # pose_loss += mse_loss(pose_output, egomotion) * 100
+
+    # # third_iter
+    # image_with_depth = torch.cat((image1, image2, depth_output), dim=1)
+    # depth_output, pose_output = iter(image_with_depth)
+
+    # depth_loss += mse_loss(depth_output, depth) * 100
+    # pose_loss += mse_loss(pose_output, egomotion) * 100
 
     # get pose
     # pose_output = pose_regressor(image_with_depth)
@@ -128,10 +164,8 @@ def train(input, encoder_decoder, pose_regressor, optical_flow, optimizer):
     # get opticalflow
     # opticalflow_output = optical_flow(pose_output, depth_output)
 
-    mse_loss = torch.nn.MSELoss()
-
-    depth_loss = mse_loss(depth_output, depth) * 100
-    pose_loss = mse_loss(pose_output, egomotion) * 100
+    # depth_loss = mse_loss(depth_output, depth) * 100
+    # pose_loss = mse_loss(pose_output, egomotion) * 100
     # optical_loss = mse_loss(opticalflow_output, opticalflow)
 
     loss = depth_loss + pose_loss

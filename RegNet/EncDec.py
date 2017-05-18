@@ -73,6 +73,10 @@ class EncDec(nn.Module):
         self.conv10 = nn.Conv2d(16, 1, kernel_size=9, stride=1, padding=4,
                                bias=False)
 
+        # Freeze those weights
+        for param in self.parameters():
+            param.requires_grad = False
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
