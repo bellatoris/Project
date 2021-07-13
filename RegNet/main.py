@@ -5,13 +5,16 @@ from Iter import Iter
 from data_reader import *
 from ssim import SSIM
 
+import numpy as np
 import torch.backends.cudnn as cudnn
 import torch
 import time
+import os
 
-import numpy as np
 from imageio import imwrite
-import os.path
+
+
+dataset_dir = '../datasets'
 
 
 def parsing_minibatch(input1, batch_size):
@@ -24,20 +27,18 @@ def parsing_minibatch(input1, batch_size):
 
 
 def validateModel_simple(encoder_decoder, iter, iteration):
-    dataDir = '/home/dongwoo/Project/dataset/SUN3D_validate/harvard_c11/hv_c11_2/'
     outDir = './validation/'
+    os.makedirs(outDir, exist_ok=True)
 
     for iterVal in range(5):
-        frameID = 1 + iterVal*100
-        frameIDAnother = 15 + iterVal*100
-        output_tmp = dataLoad_SUN3D(dataDir, frameID, frameIDAnother, '', False)
+        output_tmp = miniBatch_generate(dataset_dir, 1, True)
         gtPath = outDir+'depth_gt_' + str(iterVal) + '.png'
         if not os.path.isfile(gtPath):
-            imwrite(gtPath, output_tmp['depth_first'].reshape(192, 256))
+            imwrite(gtPath, output_tmp['target_depth_first'].reshape(192, 256))
 
         input_val = np.zeros([1, 6, 192, 256])
-        input_val[:, 0:3, :, :] = output_tmp['image_first'].transpose(2, 0, 1)
-        input_val[:, 3:6, :, :] = output_tmp['image_second'].transpose(2, 0, 1)
+        input_val[0, 0:3, :, :] = output_tmp['input_image_first'].transpose(0, 3, 1, 2)
+        input_val[0, 3:6, :, :] = output_tmp['input_image_second'].transpose(0, 3, 1, 2)
         input_val = torch.from_numpy(input_val).float().cuda()
         input_val = torch.autograd.Variable(input_val)
 
@@ -88,7 +89,7 @@ def main():
 
         t = time.time()
 
-        minibatch_tmp = miniBatch_generate('', batch_size)
+        minibatch_tmp = miniBatch_generate(dataset_dir, batch_size)
         input = parsing_minibatch(minibatch_tmp, batch_size)
 
         if (i % 10000 == 0):
@@ -103,12 +104,12 @@ def main():
                   'Loss {2:.4f}\t'
                   'Depth Loss {3:.4f}\t'
                   'Pose Loss {4:.4f}\t'.format(
-                      i, elapse_t, loss.data[0],
-                      depth_loss.data[0],
-                      pose_loss.data[0],
+                      i, elapse_t, loss.item(),
+                      depth_loss.item(),
+                      pose_loss.item(),
                   ))
 
-        if i % 10000 == 0:
+        if i == 100:
             torch.save({'state_dict': encoder_decoder.state_dict()}, 'encdec_{0}.pth'.format(i))
             torch.save({'state_ditct': iterator.state_dict()}, 'iter_{0}.pth'.format(i))
             validateModel_simple(encoder_decoder, iterator, i)
@@ -135,10 +136,10 @@ def train(input, encoder_decoder, iterator, optimizer, ssim):
     pose_loss = l1_loss(pose_output, egomotion) * 100
 
     ##ssim
-    #ssim_loss = ssim(depth_output, depth).mean(1, True)
+    ssim_loss = ssim(depth_output, depth).mean()
 
-    # loss = 0.85 * ssim_loss + 0.15 * depth_loss + pose_loss
-    loss = depth_loss + pose_loss
+    loss = 0.85 * ssim_loss + 0.15 * depth_loss + pose_loss
+    # loss = depth_loss + pose_loss
 
     optimizer.zero_grad()
     loss.backward()

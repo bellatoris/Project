@@ -115,7 +115,7 @@ class Iter(nn.Module):
         out = self.relu(out)
 
         pose = self.pose_conv(out)
-        pose = pose.view(pose.size(0), -1)
+        pose = pose.reshape(pose.size(0), -1)
         pose = self.fc1(pose)
         pose = self.fc2(pose)
         pose = self.fc3(pose)
