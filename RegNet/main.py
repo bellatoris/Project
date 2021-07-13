@@ -1,8 +1,10 @@
-from .EncDec import EncDec
-from .OpticalFlow import OpticalFlow
-from .PoseReg import PoseReg
-from .Iter import Iter
-from .dataLoad_multiprocess import *
+from EncDec import EncDec
+from OpticalFlow import OpticalFlow
+from PoseReg import PoseReg
+from Iter import Iter
+from data_reader import *
+from ssim import SSIM
+
 import torch.backends.cudnn as cudnn
 import torch
 import time
@@ -13,23 +15,15 @@ import os.path
 
 
 def parsing_minibatch(input1, batch_size):
-    input1['input_image_first'] = torch.from_numpy(
-        input1['input_image_first'].transpose(0, 3, 1, 2)).float()
-    input1['input_image_second'] = torch.from_numpy(
-        input1['input_image_second'].transpose(0, 3, 1, 2)).float()
-    input1['target_depth_first'] = torch.from_numpy(
-        input1['target_depth_first'].transpose(0, 3, 1, 2)).float()
-    #input['depth_second'] = torch.from_numpy(input['depth_second']).float()
-    input1['target_opticalFlow'] = torch.from_numpy(
-        input1['target_opticalFlow'].transpose(0, 3, 1, 2)).float()
-    input1['target_egomotion'] = torch.from_numpy(
-        input1['target_egomotion']).float()
+    input1['input_image_first'] = torch.from_numpy(input1['input_image_first'].transpose(0, 3, 1, 2)).float()
+    input1['input_image_second'] = torch.from_numpy(input1['input_image_second'].transpose(0, 3, 1, 2)).float()
+    input1['target_depth_first'] = torch.from_numpy(input1['target_depth_first'].transpose(0, 3, 1, 2)).float()
+    input1['target_egomotion'] = torch.from_numpy(input1['target_egomotion']).float()
 
     return input1
 
 
 def validateModel_simple(encoder_decoder, iter, iteration):
-    #dataDir = '/home/dongwoo/Project/dataset/SUN3D_validate/harvard_c11/hv_c11_2/'
     dataDir = '/home/dongwoo/Project/dataset/SUN3D_validate/harvard_c11/hv_c11_2/'
     outDir = './validation/'
 
@@ -51,13 +45,8 @@ def validateModel_simple(encoder_decoder, iter, iteration):
         output_val, _ = encoder_decoder(input_val)
         output_val = torch.cat((input_val, output_val), dim=1)
         output_val, _ = iter(output_val)
-        # output_val = torch.cat((input_val, output_val), dim=1)
-        # output_val, _ = iter(output_val)
-        # output_val = torch.cat((input_val, output_val), dim=1)
-        # output_val, _ = iter(output_val)
 
-        outPath = outDir + 'depth_out_' + \
-            str(iterVal) + '_' + str(iteration) + '.png'
+        outPath = outDir + 'depth_out_' + str(iterVal) + '_' + str(iteration) + '.png'
         img = output_val.data.cpu().numpy().reshape(192, 256)
         imwrite(outPath, img)
 
@@ -66,8 +55,6 @@ def validateModel_simple(encoder_decoder, iter, iteration):
 
 def main():
     encoder_decoder = EncDec().cuda()
-    pose_regressor = PoseReg().cuda()
-    optical_flow = OpticalFlow().cuda()
     iterator = Iter().cuda()
 
     # load parameter
@@ -85,28 +72,29 @@ def main():
 
     lr = 1e-3
 
-    # what is this? why were two optimizer here?
-    # optimizer = torch.optim.Adam(encoder_decoder.parameters(), lr=lr, weight_decay=2e-4)
-    optimizer = torch.optim.Adam(iterator.parameters(), lr=lr, weight_decay=2e-4)
+    parameters_to_train = list(iterator.parameters())
+    parameters_to_train += list(encoder_decoder.parameters())
+    optimizer = torch.optim.Adam(parameters_to_train, lr=lr, weight_decay=2e-4)
 
+    ssim = SSIM()
 
     # Call SUN3D directories
-    inputDir = listOfDir_generate('/home/dongwoo/Project/dataset/SUN3D')
-    batch_size = 16
+    batch_size = 64
 
-    i = 1
+    i = 0
     # Main training loop
     while (True):
+        i += 1
+
         t = time.time()
 
-        minibatch_tmp = miniBatch_generate(inputDir, batch_size)
+        minibatch_tmp = miniBatch_generate('', batch_size)
         input = parsing_minibatch(minibatch_tmp, batch_size)
 
         if (i % 10000 == 0):
             optimizer.lr = 1e-4
 
-        (loss, depth_loss, pose_loss) = train(input, encoder_decoder, pose_regressor,
-                  optical_flow, iterator, optimizer)
+        (loss, depth_loss, pose_loss) = train(input, encoder_decoder, iterator, optimizer, ssim)
 
         if i % 10 == 0:
             elapse_t = time.time() - t
@@ -119,20 +107,17 @@ def main():
                       depth_loss.data[0],
                       pose_loss.data[0],
                   ))
-        i += 1
-        if i % 100 == 0:
-            torch.save({'state_dict': encoder_decoder.state_dict()}, 'encdec.pth')
-            torch.save({'state_dict': pose_regressor.state_dict()}, 'pose.pth')
-            torch.save({'state_dict': optical_flow.state_dict()}, 'optical.pth')
-            torch.save({'state_ditct': iterator.state_dict()}, 'iter.pth')
+
+        if i % 10000 == 0:
+            torch.save({'state_dict': encoder_decoder.state_dict()}, 'encdec_{0}.pth'.format(i))
+            torch.save({'state_ditct': iterator.state_dict()}, 'iter_{0}.pth'.format(i))
             validateModel_simple(encoder_decoder, iterator, i)
 
 
-def train(input, encoder_decoder, pose_regressor, optical_flow, iter, optimizer):
+def train(input, encoder_decoder, iterator, optimizer, ssim):
     image1 = torch.autograd.Variable(input['input_image_first'].cuda())
     image2 = torch.autograd.Variable(input['input_image_second'].cuda())
     egomotion = torch.autograd.Variable(input['target_egomotion'].cuda())
-    # opticalflow = torch.autograd.Variable(input['target_opticalFlow'].cuda())
     depth = torch.autograd.Variable(input['target_depth_first'].cuda())
 
     image_pair = torch.cat((image1, image2), dim=1)
@@ -144,37 +129,16 @@ def train(input, encoder_decoder, pose_regressor, optical_flow, iter, optimizer)
 
     # first_iter
     image_with_depth = torch.cat((image1, image2, depth_output), dim=1)
-    depth_output, pose_output = iter(image_with_depth)
+    depth_output, pose_output = iterator(image_with_depth)
 
     depth_loss = l1_loss(depth_output, depth) * 100
     pose_loss = l1_loss(pose_output, egomotion) * 100
 
-    # # second_iter
-    # image_with_depth = torch.cat((image1, image2, depth_output), dim=1)
-    # depth_output, pose_output = iter(image_with_depth)
+    ##ssim
+    #ssim_loss = ssim(depth_output, depth).mean(1, True)
 
-    # depth_loss += l1_loss(depth_output, depth) * 100
-    # pose_loss += l1_loss(pose_output, egomotion) * 100
-
-    # # third_iter
-    # image_with_depth = torch.cat((image1, image2, depth_output), dim=1)
-    # depth_output, pose_output = iter(image_with_depth)
-
-    # depth_loss += l1_loss(depth_output, depth) * 100
-    # pose_loss += l1_loss(pose_output, egomotion) * 100
-
-    # get pose
-    # pose_output = pose_regressor(image_with_depth)
-
-    # get opticalflow
-    # opticalflow_output = optical_flow(pose_output, depth_output)
-
-    # depth_loss = l1_loss(depth_output, depth) * 100
-    # pose_loss = l1_loss(pose_output, egomotion) * 100
-    # optical_loss = l1_loss(opticalflow_output, opticalflow)
-
+    # loss = 0.85 * ssim_loss + 0.15 * depth_loss + pose_loss
     loss = depth_loss + pose_loss
-    # loss = depth_loss
 
     optimizer.zero_grad()
     loss.backward()

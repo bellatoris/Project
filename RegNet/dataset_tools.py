@@ -83,8 +83,7 @@ def read_camera_params(h5_dataset):
     R = np.array([[h5_dataset[5], h5_dataset[8], h5_dataset[11]],
                   [h5_dataset[6], h5_dataset[9], h5_dataset[12]],
                   [h5_dataset[7], h5_dataset[10], h5_dataset[13]]], dtype=np.float64)
-    t = np.array([h5_dataset[14], h5_dataset[15],
-                 h5_dataset[16]], dtype=np.float64)
+    t = np.array([h5_dataset[14], h5_dataset[15], h5_dataset[16]], dtype=np.float64)
     return K, R, t
 
 
