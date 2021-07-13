@@ -1,12 +1,11 @@
 import numpy as np
 import os
 import re
-import scipy
-from scipy.misc import imread
-from scipy.misc import imsave
+from imageio import imread
+from imageio import imwrite
 from scipy.spatial import ConvexHull
-from scipy.interpolate import griddata
 import cv2
+
 
 def SUN3Dflow_py(sequenceDir, sequenceName, frameID, frameIDAnother):
     SUN3Dpath = sequenceDir
@@ -19,14 +18,14 @@ def SUN3Dflow_py(sequenceDir, sequenceName, frameID, frameIDAnother):
 
     # file list
     imageFiles = sorted(os.listdir(os.path.join(SUN3Dpath,
-                                         sequenceName,
-                                         'image/')))
+                                                sequenceName,
+                                                'image/')))
     depthFiles = sorted(os.listdir(os.path.join(SUN3Dpath,
-                                         sequenceName,
-                                         'depth/')))
+                                                sequenceName,
+                                                'depth/')))
     extrinsicFiles = sorted(os.listdir(os.path.join(SUN3Dpath,
-                                             sequenceName,
-                                             'extrinsics/')))
+                                                    sequenceName,
+                                                    'extrinsics/')))
 
     # read the latest version of extrinsic parameters for cameras
     extrinsic = os.path.join(SUN3Dpath,
@@ -77,14 +76,16 @@ def SUN3Dflow_py(sequenceDir, sequenceName, frameID, frameIDAnother):
     valid = valid.reshape(valid.size)
     valid = valid.nonzero()[0]
 
-    XYZcamera = XYZcamera.transpose(1,0,2).reshape(int(XYZcamera.size / 4), 4).transpose()
+    XYZcamera = XYZcamera.transpose(1, 0, 2).reshape(
+        int(XYZcamera.size / 4), 4).transpose()
     XYZcamera = XYZcamera[0:3, valid]
 #    XYZcamera = XYZcamera[XYZcamera[:, :, 3] != 0].transpose()
 #    XYZcamera = XYZcamera[0:3,:]
 
-    XYZworld =transformPointCloud(XYZcamera, extrinsicsC2W[:, :, frameID - 1])
+    XYZworld = transformPointCloud(XYZcamera, extrinsicsC2W[:, :, frameID - 1])
 
-    XYZcameraAnother = transformPointCloudInverse(XYZworld,extrinsicsC2W[:, :, frameIDAnother - 1])
+    XYZcameraAnother = transformPointCloudInverse(
+        XYZworld, extrinsicsC2W[:, :, frameIDAnother - 1])
 
     xyProject = np.dot(K, XYZcameraAnother)
 
@@ -93,14 +94,15 @@ def SUN3Dflow_py(sequenceDir, sequenceName, frameID, frameIDAnother):
     projectDepth[valid] = xyProject[2, :]
     projectDepth = projectDepth.reshape(640, 480).transpose()
 
-    good3D = (np.absolute(projectDepth - depthAnother) < 0.05) + 0  #double??
+    good3D = (np.absolute(projectDepth - depthAnother) < 0.05) + 0  # double??
 
     good3D_vec = good3D.transpose().reshape(good3D.size)
 
     validgood = good3D_vec[valid].ravel().nonzero()
     valid = valid[validgood]
 
-    gridX, gridY = np.meshgrid(np.array(range(0, 640)), np.array(range(0, 480)))
+    gridX, gridY = np.meshgrid(
+        np.array(range(0, 640)), np.array(range(0, 480)))
 
     gridX = gridX.transpose().reshape(gridX.size)
     gridY = gridY.transpose().reshape(gridY.size)
@@ -108,29 +110,29 @@ def SUN3Dflow_py(sequenceDir, sequenceName, frameID, frameIDAnother):
     gridX = gridX[valid]
     gridY = gridY[valid]
 
-
-    xyProject = xyProject[0:2, validgood[0]] / np.tile(xyProject[2, validgood[0]], (2, 1))
+    xyProject = xyProject[0:2, validgood[0]] / \
+        np.tile(xyProject[2, validgood[0]], (2, 1))
 
     u = xyProject[0, :] - gridX
     v = xyProject[1, :] - gridY
 
     F_gt = np.zeros([480, 640, 3])
 
-    F_gt1 = np.zeros([480,640]).reshape(-1)
+    F_gt1 = np.zeros([480, 640]).reshape(-1)
     F_gt1[valid] = u
-    F_gt1 = F_gt1.reshape(640,480).transpose()
+    F_gt1 = F_gt1.reshape(640, 480).transpose()
 
-    F_gt2 = np.zeros([480,640]).reshape(-1)
+    F_gt2 = np.zeros([480, 640]).reshape(-1)
     F_gt2[valid] = v
-    F_gt2 = F_gt2.reshape(640,480).transpose()
+    F_gt2 = F_gt2.reshape(640, 480).transpose()
 
-    F_gt3 = np.zeros([480,640]).reshape(-1)
+    F_gt3 = np.zeros([480, 640]).reshape(-1)
     F_gt3[valid] = 1
-    F_gt3 = F_gt3.reshape(640,480).transpose()
+    F_gt3 = F_gt3.reshape(640, 480).transpose()
 
-    F_gt[:,:,0] = F_gt1
-    F_gt[:,:,1] = F_gt2
-    F_gt[:,:,2] = F_gt3
+    F_gt[:, :, 0] = F_gt1
+    F_gt[:, :, 1] = F_gt2
+    F_gt[:, :, 2] = F_gt3
 
     # camera distance
     extrinsicFirst = extrinsicsC2W[:, 4 - 1, frameID - 1]
@@ -140,14 +142,15 @@ def SUN3Dflow_py(sequenceDir, sequenceName, frameID, frameIDAnother):
     # overlap ratio
     height = depth.shape[0]
     width = depth.shape[1]
-    if (xyProject.shape[1]> 3):
+    if (xyProject.shape[1] > 3):
         areaHull = ConvexHull(xyProject[0:2, :].transpose()).volume
     else:
         areaHull = 0
     overlapRatio = areaHull / (depth.shape[0] * depth.shape[1])
 
     # photo consistency error (PCE)
-    gridX, gridY = np.meshgrid(np.array(range(0, 640)), np.array(range(0, 480)))
+    gridX, gridY = np.meshgrid(
+        np.array(range(0, 640)), np.array(range(0, 480)))
     image_first = imread(os.path.join(SUN3Dpath,
                                       sequenceName,
                                       'image',
@@ -162,7 +165,6 @@ def SUN3Dflow_py(sequenceDir, sequenceName, frameID, frameIDAnother):
     """
     for iterChannel in range(3):
 
-        
         point = np.concatenate((gridX.reshape(gridX.size,1),gridY.reshape(gridY.size,1)),axis=1)
         value =image_first[:, :, iterChannel].reshape(-1)
 
@@ -192,13 +194,13 @@ def SUN3Dflow_py(sequenceDir, sequenceName, frameID, frameIDAnother):
     motionOut = matToSe3(extrinsicOut)
 
     inverseDepth_first = depth
-    inverseDepth_first[depth!=0] = 1/ inverseDepth_first[depth!=0]
-  
-    #inverseDepth_first
+    inverseDepth_first[depth != 0] = 1 / inverseDepth_first[depth != 0]
+
+    # inverseDepth_first
 
     # Reshape to half-size
     resize_factor = 1/2.5
-    
+
     output = {}
     """
     output['image_first'] = scipy.misc.imresize(image_first, resize_factor)
@@ -209,23 +211,21 @@ def SUN3Dflow_py(sequenceDir, sequenceName, frameID, frameIDAnother):
     output['opticalFlow'] = np.concatenate((Flow_gt0,Flow_gt1),axis=2)
     output['egomotion'] = motionOut
     """
-    output['image_first'] = cv2.resize(image_first,(256,192))#  (image_first, resize_factor)
-    output['image_second'] = cv2.resize(image_second, (256,192))
-    output['depth_first'] = cv2.resize(inverseDepth_first, (256,192)).reshape(192,256,1)
-    Flow_gt0 = cv2.resize(Flow_gt[:,:,0], (256,192)).reshape(192,256,1)
-    Flow_gt1 = cv2.resize(Flow_gt[:,:,1], (256,192)).reshape(192,256,1)
-    output['opticalFlow'] = np.concatenate((Flow_gt0,Flow_gt1),axis=2)
+    output['image_first'] = cv2.resize(
+        image_first, (256, 192))  # (image_first, resize_factor)
+    output['image_second'] = cv2.resize(image_second, (256, 192))
+    output['depth_first'] = cv2.resize(
+        inverseDepth_first, (256, 192)).reshape(192, 256, 1)
+    Flow_gt0 = cv2.resize(Flow_gt[:, :, 0], (256, 192)).reshape(192, 256, 1)
+    Flow_gt1 = cv2.resize(Flow_gt[:, :, 1], (256, 192)).reshape(192, 256, 1)
+    output['opticalFlow'] = np.concatenate((Flow_gt0, Flow_gt1), axis=2)
     output['egomotion'] = motionOut
 
-
-    output['pce']=PCE
-    output['overlapRatio']=overlapRatio
+    output['pce'] = PCE
+    output['overlapRatio'] = overlapRatio
     output['camDist'] = camDistance
-    
 
     return output
-
-
 
 
 def depthRead(filename):
@@ -235,53 +235,60 @@ def depthRead(filename):
 
     return depth
 
-def depth2XYZcamera(K,depth):
-    XYZcamera = np.zeros([480,640,4])
-    x,y = np.meshgrid(np.array(range(0,640)),np.array(range(0,480)))
-    XYZcamera[:,:,0] = (x-K[0,2])*(depth/K[0,0])
-    XYZcamera[:,:,1] = (y-K[1,2])*(depth/K[1,1])
-    XYZcamera[:,:,2] = depth
-    XYZcamera[:,:,3] = (depth!=0) + 0
+
+def depth2XYZcamera(K, depth):
+    XYZcamera = np.zeros([480, 640, 4])
+    x, y = np.meshgrid(np.array(range(0, 640)), np.array(range(0, 480)))
+    XYZcamera[:, :, 0] = (x-K[0, 2])*(depth/K[0, 0])
+    XYZcamera[:, :, 1] = (y-K[1, 2])*(depth/K[1, 1])
+    XYZcamera[:, :, 2] = depth
+    XYZcamera[:, :, 3] = (depth != 0) + 0
 
     return XYZcamera
 
 
-def transformPointCloud(XYZ,Rt):
-    XYZtransform = np.dot(Rt[0:3,0:3] ,XYZ) + np.tile(Rt[0:3,3].reshape(3,1),(1,XYZ.shape[1]))
+def transformPointCloud(XYZ, Rt):
+    XYZtransform = np.dot(Rt[0:3, 0:3], XYZ) + \
+        np.tile(Rt[0:3, 3].reshape(3, 1), (1, XYZ.shape[1]))
 
     return XYZtransform
 
-def transformPointCloudInverse(XYZ,Rt):
-    XYZtransform = np.dot(np.linalg.inv(Rt[0:3,0:3]), XYZ - np.tile(Rt[0:3,3].reshape(3,1),(1,XYZ.shape[1]) ))
+
+def transformPointCloudInverse(XYZ, Rt):
+    XYZtransform = np.dot(np.linalg.inv(
+        Rt[0:3, 0:3]), XYZ - np.tile(Rt[0:3, 3].reshape(3, 1), (1, XYZ.shape[1])))
 
     return XYZtransform
+
 
 def matToSe3(inputMtx):
     R = inputMtx[0:3, 0:3]
     theta = np.arccos((np.trace(R)-1)/2)
 
-    if(theta !=0):
+    if(theta != 0):
         lnR = theta/(2*np.sin(theta))*(R-R.transpose())
     else:
         lnR = 1/2*(R-R.transpose())
 
     outputSe3 = np.zeros(6)
-    outputSe3[3] = lnR[2,1]
-    outputSe3[4] = lnR[0,2]
-    outputSe3[5] = lnR[1,0]
+    outputSe3[3] = lnR[2, 1]
+    outputSe3[4] = lnR[0, 2]
+    outputSe3[5] = lnR[1, 0]
 
-    if(theta !=0 ):
+    if(theta != 0):
         epsB = (1 - np.cos(theta)) / np.square(theta)
-        epsC= (theta - np.sin(theta)) / np.power(theta,3)
+        epsC = (theta - np.sin(theta)) / np.power(theta, 3)
     else:
         epsB = 0.5
         epsC = 1/6
 
     V = np.eye(3) + epsB*lnR + epsC*lnR*lnR
 
-    outputSe3[0:3] = np.dot(np.linalg.inv(V) , inputMtx[0:3,3])
+    outputSe3[0:3] = np.dot(np.linalg.inv(V), inputMtx[0:3, 3])
 
     return outputSe3
+
+
 """
 
 
@@ -296,9 +303,9 @@ output['egomotion'] = np.array(output['egomotion']).reshape(6)
 output['depth_first'] = np.array(output['depth_first'].reshape(img_height,img_width,1))
 
 
-imsave('image_first.png',output['image_first'] )
-imsave('image_second.png',output['image_second'] )
-imsave('opticalFlow_u.png',output['opticalFlow'][:,:,0] )
-imsave('opticalFlow_v.png',output['opticalFlow'][:,:,1] )
-imsave('depth_first.png',output['depth_first'][:,:,0] )
+imwrite('image_first.png',output['image_first'] )
+imwrite('image_second.png',output['image_second'] )
+imwrite('opticalFlow_u.png',output['opticalFlow'][:,:,0] )
+imwrite('opticalFlow_v.png',output['opticalFlow'][:,:,1] )
+imwrite('depth_first.png',output['depth_first'][:,:,0] )
 """

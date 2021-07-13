@@ -3,7 +3,6 @@ import torch.nn as nn
 import math
 
 
-
 def conv3x3(in_planes, out_planes, stride=1):
     "3x3 convolution with padding"
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
@@ -54,11 +53,16 @@ class PoseReg(nn.Module):
                                bias=False)    # 128 x 96
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)    # 64 x 48
-        self.layer1 = self._make_layer(block, 64, layers[0])               # 64 X 48
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)    # 32 x 24
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)    # 16 x 12
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)    # 8 x 6
+        self.maxpool = nn.MaxPool2d(
+            kernel_size=3, stride=2, padding=1)    # 64 x 48
+        self.layer1 = self._make_layer(
+            block, 64, layers[0])               # 64 X 48
+        self.layer2 = self._make_layer(
+            block, 128, layers[1], stride=2)    # 32 x 24
+        self.layer3 = self._make_layer(
+            block, 256, layers[2], stride=2)    # 16 x 12
+        self.layer4 = self._make_layer(
+            block, 512, layers[3], stride=2)    # 8 x 6
         self.conv2 = nn.Conv2d(512, 512, kernel_size=(6, 8), bias=False)   # 1
         self.fc = nn.Linear(512, 6)
 
@@ -107,3 +111,4 @@ class PoseReg(nn.Module):
 
 # a = PoseReg()
 # a(torch.autograd.Variable(torch.rand(1, 7, 256, 192)))
+
