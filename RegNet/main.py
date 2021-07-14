@@ -10,6 +10,7 @@ import torch.backends.cudnn as cudnn
 import torch
 import time
 import os
+import sys
 
 from imageio import imwrite
 
@@ -26,13 +27,16 @@ def parsing_minibatch(input1, batch_size):
     return input1
 
 
-def validateModel_simple(encoder_decoder, iter, iteration):
-    outDir = './validation/'
+def validateModel_simple(encoder_decoder, iter, iteration, use_l2loss=False):
+    if use_l2loss:
+        outDir = './validation_l2/'
+    else:
+        outDir = './validation/'
     os.makedirs(outDir, exist_ok=True)
 
     for iterVal in range(5):
         output_tmp = miniBatch_generate(dataset_dir, 1, True)
-        gtPath = outDir+'depth_gt_' + str(iterVal) + '.png'
+        gtPath = outDir + 'depth_gt_' + str(iterVal) + '.png'
         if not os.path.isfile(gtPath):
             imwrite(gtPath, output_tmp['target_depth_first'].reshape(192, 256))
 
@@ -55,6 +59,17 @@ def validateModel_simple(encoder_decoder, iter, iteration):
 
 
 def main():
+    use_l2loss = sys.argv[1] == 'true'
+        
+    if use_l2loss:
+        outDir = './model_l2/'
+        gpu = 0
+    else:
+        outDir = './model/'
+        gpu = 1
+    os.makedirs(outDir, exist_ok=True)
+
+    torch.cuda.set_device(gpu) # change allocation of current GPU
     encoder_decoder = EncDec().cuda()
     iterator = Iter().cuda()
 
@@ -95,7 +110,7 @@ def main():
         if (i % 10000 == 0):
             optimizer.lr = 1e-4
 
-        (loss, depth_loss, pose_loss) = train(input, encoder_decoder, iterator, optimizer, ssim)
+        (loss, depth_loss, pose_loss) = train(input, encoder_decoder, iterator, optimizer, ssim, use_l2loss)
 
         if i % 10 == 0:
             elapse_t = time.time() - t
@@ -109,13 +124,13 @@ def main():
                       pose_loss.item(),
                   ))
 
-        if i == 100:
-            torch.save({'state_dict': encoder_decoder.state_dict()}, 'encdec_{0}.pth'.format(i))
-            torch.save({'state_ditct': iterator.state_dict()}, 'iter_{0}.pth'.format(i))
-            validateModel_simple(encoder_decoder, iterator, i)
+        if i % 10000 == 0:
+            torch.save({'state_dict': encoder_decoder.state_dict()}, os.path.join(outDir, 'encdec_{0}.pth'.format(i)))
+            torch.save({'state_ditct': iterator.state_dict()}, os.path.join(outDir, 'iter_{0}.pth'.format(i)))
+            validateModel_simple(encoder_decoder, iterator, i, use_l2loss)
 
 
-def train(input, encoder_decoder, iterator, optimizer, ssim):
+def train(input, encoder_decoder, iterator, optimizer, ssim, use_l2loss=False):
     image1 = torch.autograd.Variable(input['input_image_first'].cuda())
     image2 = torch.autograd.Variable(input['input_image_second'].cuda())
     egomotion = torch.autograd.Variable(input['target_egomotion'].cuda())
@@ -123,7 +138,10 @@ def train(input, encoder_decoder, iterator, optimizer, ssim):
 
     image_pair = torch.cat((image1, image2), dim=1)
 
-    l1_loss = torch.nn.L1Loss()
+    if use_l2loss:
+        loss_function = torch.nn.MSELoss()
+    else:
+        loss_function = torch.nn.L1Loss()
 
     # get depth
     depth_output, pose_output = encoder_decoder(image_pair)
@@ -132,14 +150,16 @@ def train(input, encoder_decoder, iterator, optimizer, ssim):
     image_with_depth = torch.cat((image1, image2, depth_output), dim=1)
     depth_output, pose_output = iterator(image_with_depth)
 
-    depth_loss = l1_loss(depth_output, depth) * 100
-    pose_loss = l1_loss(pose_output, egomotion) * 100
+    depth_loss = loss_function(depth_output, depth) * 100
+    pose_loss = loss_function(pose_output, egomotion) * 100
 
-    ##ssim
-    ssim_loss = ssim(depth_output, depth).mean()
 
-    loss = 0.85 * ssim_loss + 0.15 * depth_loss + pose_loss
-    # loss = depth_loss + pose_loss
+    if use_l2loss:
+        loss = depth_loss + pose_loss
+    else:
+        ##ssim
+        ssim_loss = ssim(depth_output, depth).mean() * 100
+        loss = 0.85 * ssim_loss + 0.15 * depth_loss + pose_loss
 
     optimizer.zero_grad()
     loss.backward()
