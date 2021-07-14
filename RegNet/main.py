@@ -63,10 +63,10 @@ def main():
         
     if use_l2loss:
         outDir = './model_l2/'
-        gpu = 0
+        gpu = 1
     else:
         outDir = './model/'
-        gpu = 1
+        gpu = 0
     os.makedirs(outDir, exist_ok=True)
 
     torch.cuda.set_device(gpu) # change allocation of current GPU
@@ -86,7 +86,7 @@ def main():
 
     cudnn.benchmark = True
 
-    lr = 1e-3
+    lr = 1e-4
 
     parameters_to_train = list(iterator.parameters())
     parameters_to_train += list(encoder_decoder.parameters())
@@ -108,7 +108,7 @@ def main():
         input = parsing_minibatch(minibatch_tmp, batch_size)
 
         if (i % 10000 == 0):
-            optimizer.lr = 1e-4
+            optimizer.lr = 1e-5
 
         (loss, depth_loss, pose_loss) = train(input, encoder_decoder, iterator, optimizer, ssim, use_l2loss)
 
@@ -124,9 +124,9 @@ def main():
                       pose_loss.item(),
                   ))
 
-        if i % 10000 == 0:
+        if i % 1000 == 0:
             torch.save({'state_dict': encoder_decoder.state_dict()}, os.path.join(outDir, 'encdec_{0}.pth'.format(i)))
-            torch.save({'state_ditct': iterator.state_dict()}, os.path.join(outDir, 'iter_{0}.pth'.format(i)))
+            torch.save({'state_dict': iterator.state_dict()}, os.path.join(outDir, 'iter_{0}.pth'.format(i)))
             validateModel_simple(encoder_decoder, iterator, i, use_l2loss)
 
 
@@ -150,15 +150,15 @@ def train(input, encoder_decoder, iterator, optimizer, ssim, use_l2loss=False):
     image_with_depth = torch.cat((image1, image2, depth_output), dim=1)
     depth_output, pose_output = iterator(image_with_depth)
 
-    depth_loss = loss_function(depth_output, depth) * 100
-    pose_loss = loss_function(pose_output, egomotion) * 100
+    depth_loss = loss_function(depth_output, depth)
+    pose_loss = loss_function(pose_output, egomotion)
 
 
     if use_l2loss:
         loss = depth_loss + pose_loss
     else:
         ##ssim
-        ssim_loss = ssim(depth_output, depth).mean() * 100
+        ssim_loss = ssim(depth_output, depth).mean()
         loss = 0.85 * ssim_loss + 0.15 * depth_loss + pose_loss
 
     optimizer.zero_grad()
