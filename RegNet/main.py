@@ -38,9 +38,11 @@ def validateModel_simple(encoder_decoder, iter, iteration, use_l2loss=False):
         output_tmp = miniBatch_generate(dataset_dir, 1, True)
         gtPath = outDir + 'depth_gt_' + str(iterVal) + '_' + str(iteration) + '.png'
         gtImagePath = outDir + 'image_gt_' + str(iterVal) + '_' + str(iteration) + '.png'
+        gtImage2Path = outDir + 'image2_gt_' + str(iterVal) + '_' + str(iteration) + '.png'
         if not os.path.isfile(gtPath):
             imwrite(gtPath, output_tmp['target_depth_first'].reshape(192, 256))
-            imwrite(gtImagePath, output_tmp['input_image_first'].reshape(192, 256))
+            imwrite(gtImagePath, output_tmp['input_image_first'].reshape(192, 256, 3))
+            imwrite(gtImage2Path, output_tmp['input_image_second'].reshape(192, 256, 3))
 
         input_val = np.zeros([1, 6, 192, 256])
         input_val[0, 0:3, :, :] = output_tmp['input_image_first'].transpose(0, 3, 1, 2)
