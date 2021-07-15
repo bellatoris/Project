@@ -9,6 +9,7 @@ import numpy as np
 import torch.backends.cudnn as cudnn
 import torch
 import sys
+import os
 
 from imageio import imwrite
 
@@ -19,6 +20,8 @@ def eval():
     iter_checkpoint_path = sys.argv[2]
     outDir = sys.argv[3]
     gpu = int(sys.argv[4])
+
+    os.makedirs(outDir, exist_ok=True)
 
     torch.cuda.set_device(gpu) # change allocation of current GPU
     encoder_decoder = EncDec().cuda()
@@ -39,9 +42,9 @@ def eval():
 
     for iterVal in dataIndex:
         output_tmp = miniBatch_generate(dataset_dir, 1, False, [iterVal])
-        gtPath = outDir + 'depth_gt_' + str(iterVal) + '.png'
-        gtImagePath = outDir + 'image_gt_' + str(iterVal) + '.png'
-        gtImage2Path = outDir + 'image2_gt_' + str(iterVal) + '.png'
+        gtPath = os.path.join(outDir, 'depth_gt_' + str(iterVal) + '.png')
+        gtImagePath = os.path.join(outDir, 'image_gt_' + str(iterVal) + '.png')
+        gtImage2Path = os.path.join(outDir, 'image2_gt_' + str(iterVal) + '.png')
 
         imwrite(gtPath, output_tmp['target_depth_first'].reshape(192, 256))
         imwrite(gtImagePath, output_tmp['input_image_first'].reshape(192, 256, 3))
@@ -58,7 +61,7 @@ def eval():
         output_val = torch.cat((input_val, output_val), dim=1)
         output_val, pose_val = iterator(output_val)
 
-        outPath = outDir + 'depth_out_' + str(iterVal) + '.png'
+        outPath = os.path.join(outDir, 'depth_out_' + str(iterVal) + '.png')
         img = output_val.data.cpu().numpy().reshape(192, 256)
         imwrite(outPath, img)
 
