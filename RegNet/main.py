@@ -31,11 +31,11 @@ def parsing_minibatch(input1, batch_size):
 
 def validateModel_simple(encoder_decoder, iteration, loss_mode):
     if loss_mode == 'l1':
-        outDir = './validation_l2/'
+        outDir = './validation_l1/'
     elif loss_mode == 'l1ssim':
         outDir = './validation_l1ssim/'
     else:
-        outDir = './validation_l1/'
+        outDir = './validation_l2/'
 
     os.makedirs(outDir, exist_ok=True)
 
