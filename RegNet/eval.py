@@ -36,9 +36,11 @@ def eval():
 
     cudnn.benchmark = True
 
-    dataIndex = [x for x in range(10)]
-    depth_error_result = np.empty([10, 3])
-    pose_error_result = np.empty([10, 1])
+    batchSize = 1705
+
+    dataIndex = [x for x in range(batchSize)]
+    depth_error_result = np.empty([batchSize, 3])
+    pose_error_result = np.empty([batchSize, 1])
 
     for iterVal in dataIndex:
         output_tmp = miniBatch_generate(dataset_dir, 1, False, [iterVal])
