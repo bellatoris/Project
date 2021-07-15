@@ -15,6 +15,8 @@ from imageio import imwrite
 
 
 def eval():
+    dataIndex = [15,36,65,80,85,87,108,118,148,149,156]
+
     dataset_dir = '../datasets'
     enc_checkpoint_path = sys.argv[1]
     outDir = sys.argv[3]
@@ -32,37 +34,37 @@ def eval():
 
     cudnn.benchmark = True
 
-    batchSize = 1705
+    batchSize = len(dataIndex)
 
-    dataIndex = [x for x in range(batchSize)]
     depth_error_result = np.empty([batchSize, 3])
     pose_error_result = np.empty([batchSize, 1])
 
-    for iterVal in dataIndex:
-        output_tmp = miniBatch_generate(dataset_dir, 1, False, [iterVal])
-        gtPath = os.path.join(outDir, 'depth_gt_' + str(iterVal) + '.png')
-        gtImagePath = os.path.join(outDir, 'image_gt_' + str(iterVal) + '.png')
-        gtImage2Path = os.path.join(outDir, 'image2_gt_' + str(iterVal) + '.png')
+    output_tmp = miniBatch_generate(dataset_dir, len(dataIndex), False, dataIndex=dataIndex)
 
-        imwrite(gtPath, output_tmp['target_depth_first'].reshape(192, 256))
-        imwrite(gtImagePath, output_tmp['input_image_first'].reshape(192, 256, 3))
-        imwrite(gtImage2Path, output_tmp['input_image_second'].reshape(192, 256, 3))
+    for i in range(len(dataIndex)):
+        gtPath = os.path.join(outDir, 'depth_gt_' + str(i) + '.png')
+        gtImagePath = os.path.join(outDir, 'image_gt_' + str(i) + '.png')
+        gtImage2Path = os.path.join(outDir, 'image2_gt_' + str(i) + '.png')
+
+        imwrite(gtPath, output_tmp['target_depth_first'][i, :, :, :].reshape(192, 256))
+        imwrite(gtImagePath, output_tmp['input_image_first'][i, :, :, :].reshape(192, 256, 3))
+        imwrite(gtImage2Path, output_tmp['input_image_second'][i, :, :, :].reshape(192, 256, 3))
 
         input_val = np.zeros([1, 6, 192, 256])
-        input_val[0, 0:3, :, :] = output_tmp['input_image_first'].transpose(0, 3, 1, 2)
-        input_val[0, 3:6, :, :] = output_tmp['input_image_second'].transpose(0, 3, 1, 2)
+        input_val[0, 0:3, :, :] = output_tmp['input_image_first'][i, :, :, :].transpose(0, 3, 1, 2)
+        input_val[0, 3:6, :, :] = output_tmp['input_image_second'][i, :, :, :].transpose(0, 3, 1, 2)
         input_val = torch.from_numpy(input_val).float().cuda()
         input_val = torch.autograd.Variable(input_val)
 
         # help doogie
         output_val, pose_val = encoder_decoder(input_val)
 
-        outPath = os.path.join(outDir, 'depth_out_' + str(iterVal) + '.png')
+        outPath = os.path.join(outDir, 'depth_out_' + str(i) + '.png')
         img = output_val.data.cpu().numpy().reshape(192, 256)
         imwrite(outPath, img)
 
-        gt_depth = torch.from_numpy(output_tmp['target_depth_first'].transpose(0, 3, 1, 2)).float()
-        gt_egomotion = torch.from_numpy(output_tmp['target_egomotion']).float()
+        gt_depth = torch.from_numpy(output_tmp['target_depth_first'][i, :, :, :].transpose(0, 3, 1, 2)).float()
+        gt_egomotion = torch.from_numpy(output_tmp['target_egomotion'][i, :]).float()
 
         depth = torch.autograd.Variable(gt_depth.cuda())
         egomotion = torch.autograd.Variable(gt_egomotion.cuda())
@@ -71,16 +73,16 @@ def eval():
         depth_loss = mse_loss(output_val, depth)
         pose_loss = torch.sqrt(mse_loss(pose_val, egomotion))
 
-        depth_error_result[iterVal, 0] = depth_loss.data.cpu().numpy()
-        pose_error_result[iterVal, 0] = pose_loss.data.cpu().numpy()
+        depth_error_result[i, 0] = depth_loss.data.cpu().numpy()
+        pose_error_result[i, 0] = pose_loss.data.cpu().numpy()
 
         l1_loss = torch.nn.L1Loss()
         depth_loss = l1_loss(output_val, depth)
-        depth_error_result[iterVal, 1] = depth_loss.data.cpu().numpy()
+        depth_error_result[i, 1] = depth_loss.data.cpu().numpy()
 
         log_loss = torch.nn.NLLLoss()
         depth_loss = log_loss(output_val, depth)
-        depth_error_result[iterVal, 2] = depth_loss.data.cpu().numpy()
+        depth_error_result[i, 2] = depth_loss.data.cpu().numpy()
 
     print(depth_error_result)
     print(pose_error_result)

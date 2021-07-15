@@ -10,12 +10,14 @@ import torch
 import time
 import os
 import sys
+import re
+import random
 
 from imageio import imwrite
 
 
 dataset_dir = '../datasets'
-dataIndex = [15,36,65,80,85,87,108,118,148,149,156]
+_dataIndex = [15,36,65,80,85,87,108,118,148,149,156]
 
 
 def parsing_minibatch(input1, batch_size):
@@ -37,25 +39,31 @@ def validateModel_simple(encoder_decoder, iteration, loss_mode):
 
     os.makedirs(outDir, exist_ok=True)
 
-    for iterVal in range(5):
-        output_tmp = miniBatch_generate(dataset_dir, 1, False, dataIndex=dataIndex)
-        gtPath = outDir + 'depth_gt_' + str(iterVal) + '_' + str(iteration) + '.png'
-        gtImagePath = outDir + 'image_gt_' + str(iterVal) + '_' + str(iteration) + '.png'
-        gtImage2Path = outDir + 'image2_gt_' + str(iterVal) + '_' + str(iteration) + '.png'
-        imwrite(gtPath, output_tmp['target_depth_first'].reshape(192, 256))
-        imwrite(gtImagePath, output_tmp['input_image_first'].reshape(192, 256, 3))
-        imwrite(gtImage2Path, output_tmp['input_image_second'].reshape(192, 256, 3))
+    if len(_dataIndex) == 0:
+        dataIndex = [random.randint(0, 1000) for _ in range(5)]
+    else:
+        dataIndex = _dataIndex
+
+    output_tmp = miniBatch_generate(dataset_dir, len(dataIndex), False, dataIndex=dataIndex)
+
+    for i in range(len(dataIndex)):
+        gtPath = outDir + 'depth_gt_' + str(i) + '_' + str(iteration) + '.png'
+        gtImagePath = outDir + 'image_gt_' + str(i) + '_' + str(iteration) + '.png'
+        gtImage2Path = outDir + 'image2_gt_' + str(i) + '_' + str(iteration) + '.png'
+        imwrite(gtPath, output_tmp['target_depth_first'][i, :, :, :].reshape(192, 256))
+        imwrite(gtImagePath, output_tmp['input_image_first'][i, :, :, :].reshape(192, 256, 3))
+        imwrite(gtImage2Path, output_tmp['input_image_second'][i, :, :, :].reshape(192, 256, 3))
 
         input_val = np.zeros([1, 6, 192, 256])
-        input_val[0, 0:3, :, :] = output_tmp['input_image_first'].transpose(0, 3, 1, 2)
-        input_val[0, 3:6, :, :] = output_tmp['input_image_second'].transpose(0, 3, 1, 2)
+        input_val[0, 0:3, :, :] = output_tmp['input_image_first'][i, :, :, :].transpose(0, 3, 1, 2)
+        input_val[0, 3:6, :, :] = output_tmp['input_image_second'][i, :, :, :].transpose(0, 3, 1, 2)
         input_val = torch.from_numpy(input_val).float().cuda()
         input_val = torch.autograd.Variable(input_val)
 
         # help doogie
         output_val, _ = encoder_decoder(input_val)
 
-        outPath = outDir + 'depth_out_' + str(iterVal) + '_' + str(iteration) + '.png'
+        outPath = outDir + 'depth_out_' + str(i) + '_' + str(iteration) + '.png'
         img = output_val.data.cpu().numpy().reshape(192, 256)
         imwrite(outPath, img)
 
@@ -64,6 +72,11 @@ def validateModel_simple(encoder_decoder, iteration, loss_mode):
 
 def main():
     loss_mode = sys.argv[1]
+
+    if len(sys.argv) == 3:
+        model_name = sys.argv[2]
+    else:
+        model_name = None
 
     if loss_mode == 'l1':
         outDir = './model_l2/'
@@ -80,16 +93,13 @@ def main():
     torch.cuda.set_device(gpu) # change allocation of current GPU
     encoder_decoder = EncDec().cuda()
 
-    # load parameter
-    # enc_checkpoint = torch.load('encdec.pth')
-    # pose_checkpoint = torch.load('pose.pth')
-    # opt_checkpoint = torch.load('optical.pth')
-    # iter_checkpoint = torch.lead('iter.pth')
-
-    # encoder_decoder.load_state_dict(enc_checkpoint['state_dict'])
-    # pose_regressor.load_state_dict(pose_checkpoint['state_dict'])
-    # optical_flow.load_state_dict(opt_checkpoint['state_dict'])
-    # iter.load_state_dict(iter_checkpoint['state_dict'])
+    if model_name is not None:
+        # load parameter
+        enc_checkpoint = torch.load(os.path.join(outDir, model_name))
+        encoder_decoder.load_state_dict(enc_checkpoint['state_dict'])
+        i = re.findall(r'\d+', model_name)[0]
+    else:
+        i = 0
 
     cudnn.benchmark = True
 
@@ -102,14 +112,13 @@ def main():
     # Call SUN3D directories
     batch_size = 64
 
-    i = 0
     # Main training loop
     while (True):
         i += 1
 
         t = time.time()
 
-        minibatch_tmp = miniBatch_generate(dataset_dir, batch_size, dataIndex=dataIndex)
+        minibatch_tmp = miniBatch_generate(dataset_dir, batch_size, dataIndex=_dataIndex)
         input = parsing_minibatch(minibatch_tmp, batch_size)
 
         if (i % 10000 == 0):
