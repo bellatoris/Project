@@ -78,24 +78,24 @@ def main():
     else:
         model_name = None
 
-    if loss_mode == 'l1':
-        outDir = './model_l2/'
+    if loss_mode == 'l2':
+        model_dir = './model_l2/'
         gpu = 0
     elif loss_mode == 'l1ssim':
-        outDir = './model_l1ssim/'
-        gpu = 1
+        model_dir = './model_l1ssim/'
+        gpu = 0
     else:
-        outDir = './model_l1/'
+        model_dir = './model_l1/'
         gpu = 2
 
-    os.makedirs(outDir, exist_ok=True)
+    os.makedirs(model_dir, exist_ok=True)
 
     torch.cuda.set_device(gpu) # change allocation of current GPU
     encoder_decoder = EncDec().cuda()
 
     if model_name is not None:
         # load parameter
-        enc_checkpoint = torch.load(os.path.join(outDir, model_name))
+        enc_checkpoint = torch.load(os.path.join(model_dir, model_name))
         encoder_decoder.load_state_dict(enc_checkpoint['state_dict'])
         i = int(re.findall(r'\d+', model_name)[0])
         print('load {0} model and start from {1} iteration'.format(model_name, i))
@@ -140,7 +140,7 @@ def main():
                   ))
 
         if i % 100 == 0:
-            torch.save({'state_dict': encoder_decoder.state_dict()}, os.path.join(outDir, 'encdec_{0}.pth'.format(i)))
+            torch.save({'state_dict': encoder_decoder.state_dict()}, os.path.join(model_dir, 'encdec_{0}.pth'.format(i)))
             validateModel_simple(encoder_decoder, i, loss_mode)
 
 
