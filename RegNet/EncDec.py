@@ -15,6 +15,8 @@ def up_conv4x4(in_planes, out_planes, stride=2):
 
 class ConvBatchRelu(nn.Module):
     def __init__(self, in_planes, out_planes, stride=1):
+        super(ConvBatchRelu, self).__init__()
+
         self.conv = conv3x3(in_planes, out_planes, stride)
         self.relu = nn.ReLU(inplace=True)
         self.bn = nn.BatchNorm2d(out_planes)
