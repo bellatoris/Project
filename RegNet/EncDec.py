@@ -13,6 +13,19 @@ def up_conv4x4(in_planes, out_planes, stride=2):
     return nn.ConvTranspose2d(in_planes, out_planes, kernel_size=4,
                               stride=stride, padding=1, bias=False)
 
+class ConvBatchRelu(nn.Module):
+    def __init__(self, in_planes, out_planes, stride=1):
+        self.conv = conv3x3(in_planes, out_planes, stride)
+        self.relu = nn.ReLU(inplace=True)
+        self.bn = nn.BatchNorm2d(out_planes)
+
+    def forward(self, x):
+        out = self.conv(x)
+        out = self.bn(out)
+        out = self.relu(out)
+
+        return out
+
 
 class EncDec(nn.Module):
     def __init__(self):
@@ -22,15 +35,17 @@ class EncDec(nn.Module):
         self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
         # input size = 6 x 256 x 192
         # conv1's output size = 32 x 128 x 96
-        self.conv1 = nn.Conv2d(6, 32, kernel_size=9, stride=2, padding=4,
-                               bias=False)
-        self.bn1 = nn.BatchNorm2d(32)
+        self.cbr1 = ConvBatchRelu(6, 32, 2)
+        self.cbr2 = ConvBatchRelu(32, 32, 1)
+        self.cbr3 = ConvBatchRelu(32, 32, 1)
+        self.cbr4 = ConvBatchRelu(32, 32, 1)
         self.shortcut_conv1 = conv3x3(32, 32)
 
         # conv2's output size = 64 x 64 x 48
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=7, stride=2, padding=3,
-                               bias=False)
-        self.bn2 = nn.BatchNorm2d(64)
+        self.cbr5 = ConvBatchRelu(64, 64, 2)
+        self.cbr6 = ConvBatchRelu(64, 64, 1)
+        self.cbr7 = ConvBatchRelu(64, 64, 1)
+        self.cbr8 = ConvBatchRelu(64, 64, 1)
 
         # conv3's output size = 64 x 64 x 48
         self.conv3 = conv3x3(64, 64, stride=1)
@@ -93,14 +108,13 @@ class EncDec(nn.Module):
         self.conv17 = conv3x3(16, 16, stride=1)
         self.bn17 = nn.BatchNorm2d(16)
 
-        self.conv18 = nn.Conv2d(16, 1, kernel_size=9, stride=1, padding=4,
-                               bias=False)
+        self.conv18 = conv3x3(16, 1, stride=1)
 
         self.sigmoid = nn.Sigmoid()
 
         # Freeze those weights
-        for param in self.parameters():
-            param.requires_grad = False
+        # for param in self.parameters():
+        #     param.requires_grad = False
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
@@ -110,15 +124,18 @@ class EncDec(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
+        out = self.cbr1(x)
+        out = self.cbr2(out)
+        out = self.cbr3(out)
+        out = self.cbr4(out)
 
         shortcut1 = out    # shortcut1's size = 32 x 128 x 96
 
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
+        out = self.cbr5(out)
+        out = self.cbr6(out)
+        out = self.cbr7(out)
+        out = self.cbr8(out)
+
         out = self.conv3(out)
         out = self.bn3(out)
         out = self.relu(out)
@@ -205,7 +222,7 @@ class EncDec(nn.Module):
         out = self.bn17(out)
         out = self.relu(out)
 
-        out = self.conv18(out)      # out's size = 1 x 256 x 192
+        out = self.conv18(out)    # out's size = 1 x 256 x 192
 
         out = self.sigmoid(out)
 
