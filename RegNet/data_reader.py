@@ -8,8 +8,8 @@ from dataset_tools import *
 
 train_datasets = [
     'sun3d_train_0.1m_to_0.2m.h5',
-    'sun3d_train_0.2m_to_0.4m.h5',
-    'sun3d_train_0.8m_to_1.6m.h5',
+    # 'sun3d_train_0.2m_to_0.4m.h5',
+    # 'sun3d_train_0.8m_to_1.6m.h5',
 ]
 
 validation_datasets = [
@@ -17,7 +17,7 @@ validation_datasets = [
 ]
 
 
-def miniBatch_generate(directory, miniBatch_size=64, for_validation=False):
+def miniBatch_generate(directory, miniBatch_size=64, for_validation=False, dataIndex=[]):
     # This is hyper-parameter for (image width and height, second frame number bias,
     #  image pair's thresholds)
     width = 256
@@ -42,7 +42,12 @@ def miniBatch_generate(directory, miniBatch_size=64, for_validation=False):
     h5file = h5py.File(os.path.join(directory, datasets[datasetId]))
 
     for i in range(miniBatch_size):
-        output_tmp =  readSUN3D_singleData(h5file)
+        if len(dataIndex) != 0:
+            frameIndex = i % len(dataIndex)
+            output_tmp = readSUN3D_singleData(h5file, dataIndex[frameIndex])
+        else:
+            output_tmp = readSUN3D_singleData(h5file)
+
         input_image_first[i, :, :, :] = output_tmp['image_first']
         input_image_second[i, :, :, :] = output_tmp['image_second']
         target_depth_first[i, :, :, :] = output_tmp['depth_first']
@@ -56,9 +61,10 @@ def miniBatch_generate(directory, miniBatch_size=64, for_validation=False):
             }
 
 
-def readSUN3D_singleData(h5file):
+def readSUN3D_singleData(h5file, frameId=-1):
     keys = [k for k in h5file.keys()]
-    frameId = random.randint(0, len(keys)-1)
+    if frameId == -1:
+        frameId = random.randint(0, len(keys)-1)
 
     first_view = read_view(h5file[keys[frameId]].get('frames').get('t0').get('v0'))
     second_view = read_view(h5file[keys[frameId]].get('frames').get('t0').get('v1'))

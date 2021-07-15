@@ -64,7 +64,7 @@ def validateModel_simple(encoder_decoder, iter, iteration, use_l2loss=False):
 
 def main():
     use_l2loss = sys.argv[1] == 'true'
-        
+
     if use_l2loss:
         outDir = './model_l2/'
         gpu = 1
