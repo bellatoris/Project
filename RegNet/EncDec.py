@@ -44,7 +44,7 @@ class EncDec(nn.Module):
         self.shortcut_conv1 = conv3x3(32, 32)
 
         # conv2's output size = 64 x 64 x 48
-        self.cbr5 = ConvBatchRelu(64, 64, 2)
+        self.cbr5 = ConvBatchRelu(32, 64, 2)
         self.cbr6 = ConvBatchRelu(64, 64, 1)
         self.cbr7 = ConvBatchRelu(64, 64, 1)
         self.cbr8 = ConvBatchRelu(64, 64, 1)
