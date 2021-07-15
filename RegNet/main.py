@@ -83,7 +83,7 @@ def main():
         gpu = 0
     elif loss_mode == 'l1ssim':
         model_dir = './model_l1ssim/'
-        gpu = 0
+        gpu = 1
     else:
         model_dir = './model_l1/'
         gpu = 2
