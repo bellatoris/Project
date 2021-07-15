@@ -17,7 +17,6 @@ from imageio import imwrite
 def eval():
     dataset_dir = '../datasets'
     enc_checkpoint_path = sys.argv[1]
-    iter_checkpoint_path = sys.argv[2]
     outDir = sys.argv[3]
     gpu = int(sys.argv[4])
 
@@ -25,14 +24,11 @@ def eval():
 
     torch.cuda.set_device(gpu) # change allocation of current GPU
     encoder_decoder = EncDec().cuda()
-    iterator = Iter().cuda()
 
     # load parameter
     enc_checkpoint = torch.load(enc_checkpoint_path)
-    iter_checkpoint = torch.load(iter_checkpoint_path)
 
     encoder_decoder.load_state_dict(enc_checkpoint['state_dict'])
-    iterator.load_state_dict(iter_checkpoint['state_dict'])
 
     cudnn.benchmark = True
 
@@ -59,9 +55,7 @@ def eval():
         input_val = torch.autograd.Variable(input_val)
 
         # help doogie
-        output_val, _ = encoder_decoder(input_val)
-        output_val = torch.cat((input_val, output_val), dim=1)
-        output_val, pose_val = iterator(output_val)
+        output_val, pose_val = encoder_decoder(input_val)
 
         outPath = os.path.join(outDir, 'depth_out_' + str(iterVal) + '.png')
         img = output_val.data.cpu().numpy().reshape(192, 256)

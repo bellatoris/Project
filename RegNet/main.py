@@ -1,7 +1,6 @@
 from EncDec import EncDec
 from OpticalFlow import OpticalFlow
 from PoseReg import PoseReg
-from Iter import Iter
 from data_reader import *
 from ssim import SSIM
 
@@ -27,7 +26,7 @@ def parsing_minibatch(input1, batch_size):
     return input1
 
 
-def validateModel_simple(encoder_decoder, iter, iteration, use_l2loss=False):
+def validateModel_simple(encoder_decoder, iteration, use_l2loss=False):
     if use_l2loss:
         outDir = './validation_l2/'
     else:
@@ -52,8 +51,6 @@ def validateModel_simple(encoder_decoder, iter, iteration, use_l2loss=False):
 
         # help doogie
         output_val, _ = encoder_decoder(input_val)
-        output_val = torch.cat((input_val, output_val), dim=1)
-        output_val, _ = iter(output_val)
 
         outPath = outDir + 'depth_out_' + str(iterVal) + '_' + str(iteration) + '.png'
         img = output_val.data.cpu().numpy().reshape(192, 256)
@@ -75,7 +72,6 @@ def main():
 
     torch.cuda.set_device(gpu) # change allocation of current GPU
     encoder_decoder = EncDec().cuda()
-    iterator = Iter().cuda()
 
     # load parameter
     # enc_checkpoint = torch.load('encdec.pth')
@@ -92,8 +88,7 @@ def main():
 
     lr = 1e-4
 
-    parameters_to_train = list(iterator.parameters())
-    parameters_to_train += list(encoder_decoder.parameters())
+    parameters_to_train = list(encoder_decoder.parameters())
     optimizer = torch.optim.Adam(parameters_to_train, lr=lr, weight_decay=2e-4)
 
     ssim = SSIM()
@@ -114,7 +109,7 @@ def main():
         if (i % 10000 == 0):
             optimizer.lr = 1e-5
 
-        (loss, depth_loss, pose_loss) = train(input, encoder_decoder, iterator, optimizer, ssim, use_l2loss)
+        (loss, depth_loss, pose_loss) = train(input, encoder_decoder, optimizer, use_l2loss)
 
         if i % 10 == 0:
             elapse_t = time.time() - t
@@ -128,13 +123,12 @@ def main():
                       pose_loss.item(),
                   ))
 
-        if i % 1000 == 0:
+        if i % 500 == 0:
             torch.save({'state_dict': encoder_decoder.state_dict()}, os.path.join(outDir, 'encdec_{0}.pth'.format(i)))
-            torch.save({'state_dict': iterator.state_dict()}, os.path.join(outDir, 'iter_{0}.pth'.format(i)))
-            validateModel_simple(encoder_decoder, iterator, i, use_l2loss)
+            validateModel_simple(encoder_decoder, i, use_l2loss)
 
 
-def train(input, encoder_decoder, iterator, optimizer, ssim, use_l2loss=False):
+def train(input, encoder_decoder, optimizer, use_l2loss=False):
     image1 = torch.autograd.Variable(input['input_image_first'].cuda())
     image2 = torch.autograd.Variable(input['input_image_second'].cuda())
     egomotion = torch.autograd.Variable(input['target_egomotion'].cuda())
@@ -150,21 +144,10 @@ def train(input, encoder_decoder, iterator, optimizer, ssim, use_l2loss=False):
     # get depth
     depth_output, pose_output = encoder_decoder(image_pair)
 
-    # first_iter
-    image_with_depth = torch.cat((image1, image2, depth_output), dim=1)
-    depth_output, pose_output = iterator(image_with_depth)
-
     depth_loss = loss_function(depth_output, depth)
     pose_loss = loss_function(pose_output, egomotion)
 
-
-    if use_l2loss:
-        loss = depth_loss + pose_loss
-    else:
-        ##ssim
-        # ssim_loss = ssim(depth_output, depth).mean()
-        # loss = 0.85 * ssim_loss + 0.15 * depth_loss + pose_loss
-        loss = depth_loss + pose_loss
+    loss = depth_loss + pose_loss
 
     optimizer.zero_grad()
     loss.backward()

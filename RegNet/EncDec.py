@@ -19,6 +19,7 @@ class EncDec(nn.Module):
         super(EncDec, self).__init__()
 
         self.relu = nn.ReLU(inplace=True)
+        self.upsample = nn.UpsamplingBilinear2d(scale_factor=2)
         # input size = 6 x 256 x 192
         # conv1's output size = 32 x 128 x 96
         self.conv1 = nn.Conv2d(6, 32, kernel_size=9, stride=2, padding=4,
@@ -63,27 +64,36 @@ class EncDec(nn.Module):
         self.fc3 = nn.Linear(128, 7)
 
         # up_conv1's output size = 256 x 16 x 12
-        self.up_conv1 = up_conv4x4(512, 256, stride=2)
+        self.conv10 = conv3x3(512, 256, stride=1)
         self.bn10 = nn.BatchNorm2d(256)
 
         # up_conv2's output size = 128 x 32 x 24
-        self.up_conv2 = up_conv4x4(256, 128, stride=2)
+        self.conv11 = conv3x3(256, 128, stride=1)
         self.bn11 = nn.BatchNorm2d(128)
 
         # up_conv3's output size = 64 x 64 x 48
-        self.up_conv3 = up_conv4x4(128, 64, stride=2)
+        self.conv12 = conv3x3(128, 64, stride=1)
         self.bn12 = nn.BatchNorm2d(64)
 
         # up_conv4's output size = 32 x 128 x 96
-        self.up_conv4 = up_conv4x4(64, 32, stride=2)
+        self.conv13 = conv3x3(64, 32, stride=1)
         self.bn13 = nn.BatchNorm2d(32)
 
         # up_conv5's output size = 16 x 256 x 192
-        self.up_conv5 = up_conv4x4(32, 16, stride=2)
+        self.conv14 = conv3x3(32, 16, stride=1)
         self.bn14 = nn.BatchNorm2d(16)
 
-        # conv10's output size = 1 x 256 x 192
-        self.conv10 = nn.Conv2d(16, 1, kernel_size=9, stride=1, padding=4,
+        # conv10's output size = 16 x 256 x 192
+        self.conv15 = conv3x3(16, 16, stride=1)
+        self.bn15 = nn.BatchNorm2d(32)
+
+        self.conv16 = conv3x3(16, 16, stride=1)
+        self.bn16 = nn.BatchNorm2d(32)
+
+        self.conv17 = conv3x3(16, 16, stride=1)
+        self.bn17 = nn.BatchNorm2d(16)
+
+        self.conv18 = nn.Conv2d(16, 1, kernel_size=9, stride=1, padding=4,
                                bias=False)
 
         self.sigmoid = nn.Sigmoid()
@@ -150,35 +160,52 @@ class EncDec(nn.Module):
         pose = self.fc2(pose)
         pose = self.fc3(pose)
 
-        out = self.up_conv1(out)    # out's size = 256 x 16 x 12
+        out = self.upsample(out)
+        out = self.conv10(out)    # out's size = 256 x 16 x 12
         out = self.bn10(out)
         out += shortcut4
         out += self.shortcut_conv4(shortcut4)
         out = self.relu(out)
 
-        out = self.up_conv2(out)    # out's size = 128 x 32 x 24
+        out = self.upsample(out)
+        out = self.conv11(out)    # out's size = 128 x 32 x 24
         out = self.bn11(out)
         out += shortcut3
         out += self.shortcut_conv3(shortcut3)
         out = self.relu(out)
 
-        out = self.up_conv3(out)    # out's size = 64 x 64 x 48
+        out = self.upsample(out)
+        out = self.conv12(out)    # out's size = 64 x 64 x 48
         out = self.bn12(out)
         out += shortcut2
         out += self.shortcut_conv2(shortcut2)
         out = self.relu(out)
 
-        out = self.up_conv4(out)    # out's size = 32 x 128 x 96
+        out = self.upsample(out)
+        out = self.conv13(out)    # out's size = 32 x 128 x 96
         out = self.bn13(out)
         out += shortcut1
         out += self.shortcut_conv1(shortcut1)
         out = self.relu(out)
 
-        out = self.up_conv5(out)    # out's size = 16 x 256 x 192
+        out = self.upsample(out)
+        out = self.conv14(out)    # out's size = 16 x 256 x 192
         out = self.bn14(out)
         out = self.relu(out)
 
-        out = self.conv10(out)      # out's size = 1 x 256 x 192
+        out = self.conv15(out)    # out's size = 16 x 256 x 192
+        out = self.bn15(out)
+        out = self.relu(out)
+
+        out = self.conv16(out)    # out's size = 16 x 256 x 192
+        out = self.bn16(out)
+        out = self.relu(out)
+
+        out = self.conv17(out)    # out's size = 16 x 256 x 192
+        out = self.bn17(out)
+        out = self.relu(out)
+
+        out = self.conv18(out)      # out's size = 1 x 256 x 192
 
         out = self.sigmoid(out)
 
