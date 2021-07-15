@@ -19,8 +19,8 @@ def eval():
 
     dataset_dir = '../datasets'
     enc_checkpoint_path = sys.argv[1]
-    outDir = sys.argv[3]
-    gpu = int(sys.argv[4])
+    outDir = sys.argv[2]
+    gpu = int(sys.argv[3])
 
     os.makedirs(outDir, exist_ok=True)
 
@@ -51,8 +51,8 @@ def eval():
         imwrite(gtImage2Path, output_tmp['input_image_second'][i, :, :, :].reshape(192, 256, 3))
 
         input_val = np.zeros([1, 6, 192, 256])
-        input_val[0, 0:3, :, :] = output_tmp['input_image_first'][i, :, :, :].transpose(0, 3, 1, 2)
-        input_val[0, 3:6, :, :] = output_tmp['input_image_second'][i, :, :, :].transpose(0, 3, 1, 2)
+        input_val[0, 0:3, :, :] = output_tmp['input_image_first'][i, :, :, :].transpose(2, 0, 1)
+        input_val[0, 3:6, :, :] = output_tmp['input_image_second'][i, :, :, :].transpose(2, 0, 1)
         input_val = torch.from_numpy(input_val).float().cuda()
         input_val = torch.autograd.Variable(input_val)
 
@@ -63,11 +63,11 @@ def eval():
         img = output_val.data.cpu().numpy().reshape(192, 256)
         imwrite(outPath, img)
 
-        gt_depth = torch.from_numpy(output_tmp['target_depth_first'][i, :, :, :].transpose(0, 3, 1, 2)).float()
+        gt_depth = torch.from_numpy(output_tmp['target_depth_first'][i, :, :, :].transpose(2, 0, 1)).float()
         gt_egomotion = torch.from_numpy(output_tmp['target_egomotion'][i, :]).float()
 
-        depth = torch.autograd.Variable(gt_depth.cuda())
-        egomotion = torch.autograd.Variable(gt_egomotion.cuda())
+        depth = torch.autograd.Variable(gt_depth.cuda()).reshape(192, 256)
+        egomotion = torch.autograd.Variable(gt_egomotion.cuda()).reshape(7)
 
         mse_loss = torch.nn.MSELoss()
         depth_loss = mse_loss(output_val, depth)
@@ -79,10 +79,6 @@ def eval():
         l1_loss = torch.nn.L1Loss()
         depth_loss = l1_loss(output_val, depth)
         depth_error_result[i, 1] = depth_loss.data.cpu().numpy()
-
-        log_loss = torch.nn.NLLLoss()
-        depth_loss = log_loss(output_val, depth)
-        depth_error_result[i, 2] = depth_loss.data.cpu().numpy()
 
     print(depth_error_result)
     print(pose_error_result)

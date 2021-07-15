@@ -55,8 +55,8 @@ def validateModel_simple(encoder_decoder, iteration, loss_mode):
         imwrite(gtImage2Path, output_tmp['input_image_second'][i, :, :, :].reshape(192, 256, 3))
 
         input_val = np.zeros([1, 6, 192, 256])
-        input_val[0, 0:3, :, :] = output_tmp['input_image_first'][i, :, :, :].transpose(0, 3, 1, 2)
-        input_val[0, 3:6, :, :] = output_tmp['input_image_second'][i, :, :, :].transpose(0, 3, 1, 2)
+        input_val[0, 0:3, :, :] = output_tmp['input_image_first'][i, :, :, :].transpose(2, 0, 1)
+        input_val[0, 3:6, :, :] = output_tmp['input_image_second'][i, :, :, :].transpose(2, 0, 1)
         input_val = torch.from_numpy(input_val).float().cuda()
         input_val = torch.autograd.Variable(input_val)
 
@@ -97,7 +97,8 @@ def main():
         # load parameter
         enc_checkpoint = torch.load(os.path.join(outDir, model_name))
         encoder_decoder.load_state_dict(enc_checkpoint['state_dict'])
-        i = re.findall(r'\d+', model_name)[0]
+        i = int(re.findall(r'\d+', model_name)[0])
+        print('load {0} model and start from {1} iteration'.format(model_name, i))
     else:
         i = 0
 
