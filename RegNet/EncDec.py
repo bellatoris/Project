@@ -85,10 +85,10 @@ class EncDec(nn.Module):
 
         # conv10's output size = 16 x 256 x 192
         self.conv15 = conv3x3(16, 16, stride=1)
-        self.bn15 = nn.BatchNorm2d(32)
+        self.bn15 = nn.BatchNorm2d(16)
 
         self.conv16 = conv3x3(16, 16, stride=1)
-        self.bn16 = nn.BatchNorm2d(32)
+        self.bn16 = nn.BatchNorm2d(16)
 
         self.conv17 = conv3x3(16, 16, stride=1)
         self.bn17 = nn.BatchNorm2d(16)
