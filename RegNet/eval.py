@@ -18,7 +18,7 @@ def eval():
     enc_checkpoint_path = sys.argv[1]
     iter_checkpoint_path = sys.argv[2]
     outDir = sys.argv[3]
-    gpu = sys.argv[4]
+    gpu = int(sys.argv[4])
 
     torch.cuda.set_device(gpu) # change allocation of current GPU
     encoder_decoder = EncDec().cuda()
@@ -62,9 +62,11 @@ def eval():
         img = output_val.data.cpu().numpy().reshape(192, 256)
         imwrite(outPath, img)
 
+        gt_depth = torch.from_numpy(output_tmp['target_depth_first'].transpose(0, 3, 1, 2)).float()
+        gt_egomotion = torch.from_numpy(output_tmp['target_egomotion']).float()
 
-        depth = torch.autograd.Variable(output_tmp['target_depth_first'].cuda())
-        egomotion = torch.autograd.Variable(output_tmp['target_egomotion'].cuda())
+        depth = torch.autograd.Variable(gt_depth.cuda())
+        egomotion = torch.autograd.Variable(gt_egomotion.cuda())
 
         mse_loss = torch.nn.MSELoss()
         depth_loss = mse_loss(output_val, depth)
@@ -86,3 +88,5 @@ def eval():
 
     print(np.mean(depth_error_result, axis=0))
     print(np.mean(pose_error_result, axis=0))
+
+eval()
