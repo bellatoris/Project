@@ -167,7 +167,7 @@ def train(input, encoder_decoder, optimizer, ssim, loss_mode):
         loss = depth_loss + pose_loss
     else:
         ssim_loss = ssim(depth_output, depth).mean()
-        loss = ssim_loss + depth_loss + pose_loss
+        loss = 0.84 * ssim_loss + 0.16 * depth_loss + pose_loss
 
     optimizer.zero_grad()
     loss.backward()
