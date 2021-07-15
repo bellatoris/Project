@@ -34,14 +34,13 @@ def validateModel_simple(encoder_decoder, iteration, use_l2loss=False):
     os.makedirs(outDir, exist_ok=True)
 
     for iterVal in range(5):
-        output_tmp = miniBatch_generate(dataset_dir, 1, True)
+        output_tmp = miniBatch_generate(dataset_dir, 1, False, dataIndex=[14])
         gtPath = outDir + 'depth_gt_' + str(iterVal) + '_' + str(iteration) + '.png'
         gtImagePath = outDir + 'image_gt_' + str(iterVal) + '_' + str(iteration) + '.png'
         gtImage2Path = outDir + 'image2_gt_' + str(iterVal) + '_' + str(iteration) + '.png'
-        if not os.path.isfile(gtPath):
-            imwrite(gtPath, output_tmp['target_depth_first'].reshape(192, 256))
-            imwrite(gtImagePath, output_tmp['input_image_first'].reshape(192, 256, 3))
-            imwrite(gtImage2Path, output_tmp['input_image_second'].reshape(192, 256, 3))
+        imwrite(gtPath, output_tmp['target_depth_first'].reshape(192, 256))
+        imwrite(gtImagePath, output_tmp['input_image_first'].reshape(192, 256, 3))
+        imwrite(gtImage2Path, output_tmp['input_image_second'].reshape(192, 256, 3))
 
         input_val = np.zeros([1, 6, 192, 256])
         input_val[0, 0:3, :, :] = output_tmp['input_image_first'].transpose(0, 3, 1, 2)
@@ -91,8 +90,6 @@ def main():
     parameters_to_train = list(encoder_decoder.parameters())
     optimizer = torch.optim.Adam(parameters_to_train, lr=lr, weight_decay=2e-4)
 
-    ssim = SSIM()
-
     # Call SUN3D directories
     batch_size = 64
 
@@ -103,7 +100,7 @@ def main():
 
         t = time.time()
 
-        minibatch_tmp = miniBatch_generate(dataset_dir, batch_size)
+        minibatch_tmp = miniBatch_generate(dataset_dir, batch_size, dataIndex=[14])
         input = parsing_minibatch(minibatch_tmp, batch_size)
 
         if (i % 10000 == 0):
@@ -123,7 +120,7 @@ def main():
                       pose_loss.item(),
                   ))
 
-        if i % 500 == 0:
+        if i % 100 == 0:
             torch.save({'state_dict': encoder_decoder.state_dict()}, os.path.join(outDir, 'encdec_{0}.pth'.format(i)))
             validateModel_simple(encoder_decoder, i, use_l2loss)
 
